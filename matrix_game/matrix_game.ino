@@ -1,24 +1,23 @@
 #include <LiquidCrystal.h>
 #include <LedControl.h>
 #include <EEPROM.h>
-#define matrixDIN 10
+#define matrixDIN 12
 #define matrixCS 9
 #define matrixCLK 8
 #define displayD7 7
 #define displayD6 6
 #define displayD5 5
 #define displayD4 4
-#define displayBacklight 3  //PWM controllable
-#define displayEN 12
-#define displayRS 13
-#define buzzerPin 2
+#define displayBacklight 10  //PWM controllable
+#define displayEN 13
+#define displayRS 2
+#define buzzerPin 3
 #define redPushbtn A4
 #define joystickX A1
 #define joystickY A2
 #define joystickSw A0
 #define ambientLightSensor A3
-#define matrixRows 16
-#define matrixColumns 8
+#define matrixSize 8
 #define storedParametersCount 6
 #define blinkInterval 250
 #define maxCharsName 8
@@ -26,19 +25,11 @@
 #define maxAccesibleMenuStates 5
 #define maxAccesibleInternalMenus 2
 #define maxAccesibleSettingsSubmenus 5
-#define matrixTop 1
-#define matrixBottom 0
+#define noOfMatrix 1
+#define matrixId 0
 
-byte logicalMatrix[matrixRows][matrixColumns] = {
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
+byte logicalMatrix[matrixSize][matrixSize] = {
+  { 1, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -47,7 +38,6 @@ byte logicalMatrix[matrixRows][matrixColumns] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 }
 };
-
 
 enum brightnessLevels {
   lowBrightness,
@@ -157,7 +147,7 @@ highscore hs2;
 highscore hs3;
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
-LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, 2);
+LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
 
 void setup() {
   lcd.begin(16, 2);
@@ -182,6 +172,7 @@ void setup() {
   randomSeed(analogRead(A5));
   currentState = intro;  //switch to intro state after the setup runs
   Serial.begin(9600);
+  tone(buzzerPin,500,250);
 }
 
 void loop() {
@@ -210,10 +201,9 @@ void loadHighscores() {
 }
 
 void displayMatrix() {
-  for (int row = 0; row < matrixRows; row++) {
-    for (int col = 0; col < matrixColumns; col++) {
-      matrix.setLed(matrixTop, row, col, logicalMatrix[row][col]);
-      matrix.setLed(matrixBottom, row, col, logicalMatrix[row][col]); //problem with the indexes
+  for (int row = 0; row < matrixSize; row++) {
+    for (int col = 0; col < matrixSize; col++) {
+      matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
     }
   }
 }
