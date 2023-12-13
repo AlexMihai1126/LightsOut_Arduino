@@ -28,8 +28,30 @@
 #define noOfMatrix 1
 #define matrixId 0
 
+byte upArrowChar[8] = {
+	0b00000,
+	0b00100,
+	0b01110,
+	0b10101,
+	0b00100,
+	0b00100,
+	0b00100,
+	0b00000
+};
+
+byte downArrowChar[8] = {
+	0b00000,
+	0b00100,
+	0b00100,
+	0b00100,
+	0b10101,
+	0b01110,
+	0b00100,
+	0b00000
+};
+
 byte logicalMatrix[matrixSize][matrixSize] = {
-  { 1, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -37,6 +59,96 @@ byte logicalMatrix[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 }
+};
+
+byte mainMenuICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 1, 1, 0, 0, 0 },
+  { 0, 0, 1, 0, 0, 1, 0, 0 },
+  { 0, 1, 0, 0, 0, 0, 1, 0 },
+  { 1, 0, 0, 0, 0, 0, 0, 1 },
+  { 1, 0, 0, 0, 0, 0, 0, 1 },
+  { 1, 0, 0, 0, 0, 0, 0, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1 },
+};
+
+byte atSymbolICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 1, 1, 1, 0, 0, 0 },
+  { 0, 1, 0, 0, 0, 1, 0, 0 },
+  { 0, 1, 0, 1, 1, 1, 0, 0 },
+  { 0, 1, 0, 1, 1, 0, 0, 0 },
+  { 0, 1, 0, 0, 0, 0, 1, 0 },
+  { 0, 0, 1, 1, 1, 1, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+
+byte lightICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 1, 0, 0, 0 },
+  { 0, 0, 1, 0, 1, 0, 1, 0 },
+  { 0, 0, 0, 1, 1, 1, 0, 0 },
+  { 0, 1, 1, 1, 0, 1, 1, 1 },
+  { 0, 0, 0, 1, 1, 1, 0, 0 },
+  { 0, 0, 1, 0, 1, 0, 1, 0 },
+  { 0, 0, 0, 0, 1, 0, 0, 0 },
+};
+
+
+byte musicICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 1, 1, 0, 0, 0 },
+  { 0, 0, 0, 1, 0, 1, 0, 0 },
+  { 0, 0, 0, 1, 0, 0, 0, 0 },
+  { 0, 0, 0, 1, 0, 0, 0, 0 },
+  { 0, 0, 1, 1, 0, 0, 0, 0 },
+  { 0, 1, 1, 1, 0, 0, 0, 0 },
+  { 0, 1, 1, 0, 0, 0, 0, 0 },
+};
+
+byte helpICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 1, 1, 1, 1, 0, 0 },
+  { 0, 1, 1, 0, 0, 1, 1, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 0 },
+  { 0, 0, 0, 1, 1, 1, 0, 0 },
+  { 0, 0, 0, 1, 1, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 1, 1, 0, 0, 0 },
+};
+
+byte smileyICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 1, 1, 0, 0, 1, 1, 0 },
+  { 0, 1, 1, 0, 0, 1, 1, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 1, 0, 0, 0, 0, 0, 0, 1 },
+  { 0, 1, 0, 0, 0, 0, 1, 0 },
+  { 0, 0, 1, 1, 1, 1, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+
+
+byte settingsICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 1, 0, 0, 0 },
+  { 0, 0, 0, 1, 0, 0, 0, 0 },
+  { 0, 0, 0, 1, 1, 0, 0, 0 },
+  { 0, 0, 0, 1, 1, 1, 0, 1 },
+  { 0, 0, 1, 1, 1, 1, 1, 0 },
+  { 0, 1, 1, 1, 0, 0, 0, 0 },
+  { 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 1, 1, 0, 0, 0, 0, 0, 0 },
+};
+
+byte highscoreICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 1, 0, 1, 0, 0, 0, 1 },
+  { 1, 1, 1, 1, 1, 0, 1, 1 },
+  { 0, 1, 0, 1, 0, 0, 0, 1 },
+  { 0, 1, 0, 1, 0, 0, 0, 1 },
+  { 1, 1, 1, 1, 1, 0, 0, 1 },
+  { 0, 1, 0, 1, 0, 0, 0, 1 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
 enum brightnessLevels {
@@ -69,8 +181,9 @@ internalMenuStates currInternalMenuState = inOtherMenu;
 
 enum settingsSubmenus {
   nameInput,
-  brightnessControl,
-  soundControl,
+  mtxBrightCtrl,
+  lcdBrightCtrl,
+  soundCtrl,
   gameLevel,
   resetHighscores,
   inMainMenu
@@ -104,6 +217,12 @@ enum joystickState {
 };
 
 joystickState joyState = STATIC;
+
+enum arrowTypes {
+  upArr,
+  downArr,
+  bothArr
+};
 
 struct highscore {
   char name[maxCharsName] = "";
@@ -163,16 +282,14 @@ void setup() {
   lcd.print("STARTING UP...");
   loadParameters();
   loadHighscores();
-  matrix.shutdown(0, false);
-  matrix.setIntensity(0, matrixBrightness);
-  matrix.clearDisplay(0);
-  matrix.shutdown(1, false);
-  matrix.setIntensity(1, matrixBrightness);
-  matrix.clearDisplay(1);
+  matrix.shutdown(matrixId, false);
+  matrix.setIntensity(matrixId, matrixBrightness);
+  matrix.clearDisplay(matrixId);
   randomSeed(analogRead(A5));
   currentState = intro;  //switch to intro state after the setup runs
   Serial.begin(9600);
-  tone(buzzerPin,500,250);
+  tone(buzzerPin, 500, 250);
+  //clearLogicalMatrix();
 }
 
 void loop() {
@@ -183,6 +300,34 @@ void loop() {
     handleMenu();
   }
 }
+
+// void testSymbols(){
+//   copyByteMatrix(settingsICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(smileyICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(mainMenuICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(atSymbolICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(lightICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(musicICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(helpICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   copyByteMatrix(highscoreICO, logicalMatrix);
+//   displayMatrix();
+//   delay(500);
+//   clearLogicalMatrix();
+// }
 
 void loadParameters() {
   matrixBrightness = EEPROM.read(adresses[mtxBright]);
@@ -296,7 +441,7 @@ void handleMenu() {
   previousState = currentState;
 }
 
-void generateAutoscrollingText(const char text[], short lineToDisplay){
+void generateAutoscrollingText(const char text[], short lineToDisplay) {
   int textLength = strlen(text);
   int displayLength = 16;
   for (int i = 0; i < textLength - displayLength + 1; i++) {
@@ -307,18 +452,18 @@ void generateAutoscrollingText(const char text[], short lineToDisplay){
 }
 
 void handleIntro() {
-  if(introHasAppeared == false){
+  if (introHasAppeared == false) {
     lcd.print("Welcome!");
     introHasAppeared = true;
     currentState = startGame;
-    delay(1000); //only for test purposes will be removed in the project
+    delay(1000);  //only for test purposes will be removed in the project
     handleMenu();
   }
 }
 
 void handleStartGame() {
   lcd.print("Start game:");
-  generateAutoscrollingText("Press the RED button to start!",1);
+  generateAutoscrollingText("Press the RED button to start!", 1);
 }
 
 void handleHighscores() {
@@ -338,9 +483,9 @@ void handleSettings() {
 void handleAbout() {
   lcd.print("About the game");
   delay(500);
-  generateAutoscrollingText("Created by Alexandru Mihai",1);
+  generateAutoscrollingText("Created by Alexandru Mihai", 1);
   delay(500);
-  generateAutoscrollingText("GitHub: AlexMihai1126",1);
+  generateAutoscrollingText("GitHub: AlexMihai1126", 1);
 }
 
 void handleTutorial() {
@@ -376,5 +521,36 @@ void navigateMenuDown() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
     currentState = static_cast<mainMenuStates>((currentState + 1) % maxAccesibleMenuStates);
+  }
+}
+
+void addArrowsToDisplay(arrowTypes type) {
+  switch (type) {
+    case upArr:
+    lcd.setCursor(16, 0);
+    lcd.print("1");
+      break;
+    case downArr:
+      break;
+    case bothArr:
+      break;
+    default:
+      break;
+  }
+}
+
+void copyByteMatrix(byte matrixFrom[matrixSize][matrixSize], byte matrixTo[matrixSize][matrixSize]){
+  for(int i=0;i<matrixSize;i++){
+    for(int j=0;j<matrixSize;j++){
+      matrixTo[i][j] = matrixFrom[i][j];
+    }
+  }
+}
+
+void clearLogicalMatrix(){
+   for(int i=0;i<matrixSize;i++){
+    for(int j=0;j<matrixSize;j++){
+      logicalMatrix[i][j] = 0;
+    }
   }
 }
