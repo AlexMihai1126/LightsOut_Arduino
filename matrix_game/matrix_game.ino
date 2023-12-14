@@ -678,7 +678,7 @@ void handleSoundCtrl() {
     copyByteMatrix(musicICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    if (isSoundOn = true) {
+    if (isSoundOn == true) {
       lcd.print("On ");
       lcd.setCursor(0, 1);
     } else {
