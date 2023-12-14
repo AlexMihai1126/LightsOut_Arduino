@@ -229,7 +229,9 @@ joystickState joyState = STATIC;
 enum arrowTypes {
   upArr,
   downArr,
-  bothArr
+  upDownArr,
+  backArrow,
+  forwardArrow
 };
 
 struct highscore {
@@ -273,6 +275,7 @@ unsigned long lastDebounceTimeRedSw = 0;
 highscore hs1;
 highscore hs2;
 highscore hs3;
+highscore currPlayer;
 
 const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
@@ -282,6 +285,8 @@ LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
 void setup() {
   lcd.begin(16, 2);
   lcd.clear();
+  lcd.createChar(1, upArrowChar);
+  lcd.createChar(2, downArrowChar);
   pinMode(buzzerPin, OUTPUT);
   pinMode(redPushbtn, INPUT_PULLUP);
   pinMode(joystickSw, INPUT_PULLUP);
@@ -352,7 +357,9 @@ void handleMenu() {
 
 void handleIntro() {
   if (introHasAppeared == false) {
-    lcd.print("Welcome!");
+    lcd.print("Welcome to");
+    lcd.setCursor(0, 1);
+    lcd.print("Lights OUT!");
     introHasAppeared = true;
     currentState = startGame;
     delay(1000);  //only for test purposes will be removed in the project
@@ -366,15 +373,17 @@ void handleStartGame() {
     lcd.setCursor(0, 1);
     lcd.print("Press button!");
     copyByteMatrix(smileyICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
 void handleHighscores() {
   if (currentState != previousState) {
-    lcd.print("View highscores");
+    lcd.print("Highscores:");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
     copyByteMatrix(highscoreICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
   if (joySwState == HIGH && !isInSubmenu) {
   }
@@ -382,10 +391,11 @@ void handleHighscores() {
 
 void handleSettings() {
   if (currentState != previousState) {
-    lcd.print("SETTINGS");
+    lcd.print("Settings:");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
     copyByteMatrix(settingsICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 
   if (joySwState == HIGH && !isInSubmenu) {
@@ -397,9 +407,11 @@ void handleSettings() {
 }
 void handleAbout() {
   if (currentState != previousState) {
-    lcd.print("About the game");
+    lcd.print("About the game:");
+    lcd.setCursor(0, 1);
     lcd.print("Lights OUT");
     copyByteMatrix(atSymbolICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
   //on joystick press get info about creator
 }
@@ -407,7 +419,10 @@ void handleAbout() {
 void handleTutorial() {
   if (currentState != previousState) {
     lcd.print("How to play:");
+    lcd.setCursor(0, 1);
+    lcd.print("Press joystick");
     copyByteMatrix(helpICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
   //scrollable menu with instructions
 }
@@ -479,6 +494,7 @@ void handleNameInput() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Input name:");
     copyByteMatrix(atSymbolICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -486,6 +502,7 @@ void handleMtxBrightCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Mtx brightness:");
     copyByteMatrix(lightICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -493,6 +510,7 @@ void handleLcdBrightCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("LCD Brightness:");
     copyByteMatrix(lightICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -500,6 +518,7 @@ void handleSoundCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Game sounds:");
     copyByteMatrix(musicICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -507,6 +526,7 @@ void handleGameTypeSelect() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Game type:");
     copyByteMatrix(smileyICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -514,6 +534,7 @@ void handleResetHighscores() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Reset highscores?");
     copyByteMatrix(deleteICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
   }
 }
 
@@ -562,12 +583,34 @@ void generateAutoscrollingText(const char text[], short lineToDisplay) {
 void addArrowsToDisplay(arrowTypes type) {
   switch (type) {
     case upArr:
-      lcd.setCursor(16, 0);
-      lcd.print("1");
+      lcd.setCursor(15, 0);
+      lcd.write((byte)1);
+      lcd.setCursor(15, 1);
+      lcd.write(" ");
       break;
     case downArr:
+      lcd.setCursor(15, 0);
+      lcd.write(" ");
+      lcd.setCursor(15, 1);
+      lcd.write((byte)2);
       break;
-    case bothArr:
+    case upDownArr:
+      lcd.setCursor(15, 0);
+      lcd.write((byte)1);
+      lcd.setCursor(15, 1);
+      lcd.write((byte)2);
+      break;
+    case backArrow:
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+      lcd.setCursor(15, 1);
+      lcd.print("<");
+      break;
+    case forwardArrow:
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+      lcd.setCursor(15, 1);
+      lcd.print(">");
       break;
     default:
       break;
