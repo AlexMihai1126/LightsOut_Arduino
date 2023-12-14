@@ -28,13 +28,20 @@
 #define matrixId 0
 #define matrixLowBrightnessValue 1
 #define matrixMidBrightnessValue 3
-#define matrixHighBrightnessValue 6
-#define matrixUltraBrightnessValue 9
-#define displayLowBrightnessValue 50
-#define displayMidBrightnessValue 125
-#define displayHighBrightnessValue 175
+#define matrixHighBrightnessValue 5
+#define matrixUltraBrightnessValue 8
+#define displayLowBrightnessValue 75
+#define displayMidBrightnessValue 150
+#define displayHighBrightnessValue 200
 #define displayUltraBrightnessValue 255
 #define noOfSymbols 36
+#define noOfSamples 10
+#define updateRate 3000
+#define minThresholdValueLight 5
+#define midThresholdValueLight 25
+#define highThresholdValueLight 40
+#define soundDuration 250
+#define noOfBrightnessLevels 5
 
 byte upArrowChar[8] = {
   0b00000,
@@ -178,6 +185,9 @@ enum brightnessLevels {
   autoB
 };
 
+brightnessLevels currLcdBrightness = midBrightness;
+brightnessLevels currMtxBrightness = midBrightness;
+
 enum mainMenuStates {
   startGame,
   highscores,
@@ -253,12 +263,12 @@ struct highscore {
   int scoreValue = 0;
 };
 
-const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5,6 };
+const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5, 6 };
 
-byte matrixBrightness = 2;
-byte lcdBrightness = 127;
-bool autoBrightnessLCD = false;
-bool autoBrightnessMtx = false;
+//byte matrixBrightness = 2;
+//byte lcdBrightness = 127;
+bool autoBrightnessLCD = true;
+bool autoBrightnessMtx = true;
 bool isSoundOn = true;  //defaults
 
 bool introHasAppeared = false;
@@ -269,6 +279,8 @@ bool isInSubmenu = false;
 bool leftMovementEnabled = true;
 bool upMovementEnabled = true;
 bool downMovementEnabled = true;
+bool cmdExecutedRedSw = false;
+bool settingStateChanged = false;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -289,6 +301,7 @@ const unsigned long introShowTime = 5000;
 unsigned long startIntroTime = 0;
 unsigned long lastDebounceTimeJoySw = 0;
 unsigned long lastDebounceTimeRedSw = 0;
+unsigned long prevMillisRefresh = 0;
 
 highscore hs1;
 highscore hs2;
@@ -299,8 +312,10 @@ const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
-
+//TODO REWRITE SAVE AND LOAD FUNCTIONS FOR THE NEW ENUM DATA TYPES BRIGHTNESS!!! debug auto brightness state
 void setup() {
+  autoBrightnessLCD = false;
+  autoBrightnessMtx = false;  //due to compiler optimizations it will not upload the auto brightness controller if one of these values is false during compile time so we start with true and then instantly disable them
   lcd.begin(16, 2);
   lcd.clear();
   lcd.createChar(1, upArrowChar);
@@ -313,12 +328,12 @@ void setup() {
   pinMode(joystickY, INPUT);
   pinMode(ambientLightSensor, INPUT);
   pinMode(displayBacklight, OUTPUT);
-  analogWrite(displayBacklight, lcdBrightness);
+  displayBrightnessController(currLcdBrightness);
   lcd.print("STARTING UP...");
-  loadParameters();
-  loadHighscoresAndLevel();
+  //loadParameters();
+  //loadHighscoresAndLevel();
   matrix.shutdown(matrixId, false);
-  matrix.setIntensity(matrixId, matrixBrightness);
+  matrixBrightnessController(currMtxBrightness);
   matrix.clearDisplay(matrixId);
   randomSeed(analogRead(A5));
   currentState = intro;  //switch to intro state after the setup runs
@@ -341,9 +356,7 @@ void loop() {
       handleMenu();            // Handle the current main menu state
     }
   }
-  if(autoBrightnessLCD == true || autoBrightnessMtx == true){
-    autoBrightnessController(); //enabled only if at least one of the controls is set to automatic to save resources
-  }
+  autoBrightnessController();
 }
 
 //MAIN MENU FUNCTIONS START HERE
@@ -531,19 +544,131 @@ void handleMtxBrightCtrl() {
     copyByteMatrix(lightICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    lcd.print("Cycle: ");
-    lcd.setCursor(7, 1);
+    switch (currMtxBrightness) {
+      case lowBrightness:
+        lcd.print("Low  ");
+        lcd.setCursor(0, 1);
+        break;
+      case midBrightness:
+        lcd.print("Mid  ");
+        lcd.setCursor(0, 1);
+        break;
+      case highBrightness:
+        lcd.print("High  ");
+        lcd.setCursor(0, 1);
+        break;
+      case ultraBrightness:
+        lcd.print("Ultra");
+        lcd.setCursor(0, 1);
+        break;
+      case autoB:
+        lcd.print("Auto ");
+        lcd.setCursor(0, 1);
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    currMtxBrightness = static_cast<brightnessLevels>((currMtxBrightness + 1) % noOfBrightnessLevels);
+    matrixBrightnessController(currMtxBrightness);
+    if(currMtxBrightness == autoB){
+      autoBrightnessMtx = true;
+    } else {
+      autoBrightnessMtx = false;
+    }
+    cmdExecutedRedSw = true;
+    switch (currMtxBrightness) {
+      case lowBrightness:
+        lcd.print("Low  ");
+        lcd.setCursor(0, 1);
+        break;
+      case midBrightness:
+        lcd.print("Mid  ");
+        lcd.setCursor(0, 1);
+        break;
+      case highBrightness:
+        lcd.print("High  ");
+        lcd.setCursor(0, 1);
+        break;
+      case ultraBrightness:
+        lcd.print("Ultra");
+        lcd.setCursor(0, 1);
+        break;
+      case autoB:
+        lcd.print("Auto ");
+        lcd.setCursor(0, 1);
+        break;
+      default:
+        break;
+    }
   }
 }
-
 void handleLcdBrightCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("LCD Brightness:");
     copyByteMatrix(lightICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    lcd.print("Cycle: ");
-    lcd.setCursor(7, 1);
+    switch (currLcdBrightness) {
+      case lowBrightness:
+        lcd.print("Low  ");
+        lcd.setCursor(0, 1);
+        break;
+      case midBrightness:
+        lcd.print("Mid  ");
+        lcd.setCursor(0, 1);
+        break;
+      case highBrightness:
+        lcd.print("High  ");
+        lcd.setCursor(0, 1);
+        break;
+      case ultraBrightness:
+        lcd.print("Ultra");
+        lcd.setCursor(0, 1);
+        break;
+      case autoB:
+        lcd.print("Auto ");
+        lcd.setCursor(0, 1);
+        break;
+      default:
+        break;
+    }
+  }
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    currLcdBrightness = static_cast<brightnessLevels>((currLcdBrightness + 1) % noOfBrightnessLevels);
+    if(currLcdBrightness == autoB){
+      autoBrightnessLCD = true;
+    } else {
+      autoBrightnessLCD = false;
+    }
+    cmdExecutedRedSw = true;
+    displayBrightnessController(currLcdBrightness);
+    switch (currLcdBrightness) {
+      case lowBrightness:
+        lcd.print("Low  ");
+        lcd.setCursor(0, 1);
+        break;
+      case midBrightness:
+        lcd.print("Mid  ");
+        lcd.setCursor(0, 1);
+        break;
+      case highBrightness:
+        lcd.print("High  ");
+        lcd.setCursor(0, 1);
+        break;
+      case ultraBrightness:
+        lcd.print("Ultra");
+        lcd.setCursor(0, 1);
+        break;
+      case autoB:
+        lcd.print("Auto ");
+        lcd.setCursor(0, 1);
+        break;
+      default:
+        break;
+    }
   }
 }
 
@@ -553,8 +678,24 @@ void handleSoundCtrl() {
     copyByteMatrix(musicICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    lcd.print("Cycle: ");
-    lcd.setCursor(7, 1);
+    if (isSoundOn = true) {
+      lcd.print("On ");
+      lcd.setCursor(0, 1);
+    } else {
+      lcd.print("Off");
+      lcd.setCursor(0, 1);
+    }
+  }
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    isSoundOn = !isSoundOn;
+    cmdExecutedRedSw = true;
+    if (isSoundOn == true) {
+      lcd.print("On ");
+      lcd.setCursor(0, 1);
+    } else if (isSoundOn == false) {
+      lcd.print("Off");
+      lcd.setCursor(0, 1);
+    }
   }
 }
 
@@ -564,8 +705,24 @@ void handleGameTypeSelect() {
     copyByteMatrix(smileyICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    lcd.print("Cycle: ");
-    lcd.setCursor(7, 1);
+    if (currentGameType == randomBoard) {
+      lcd.print("Random board");
+      lcd.setCursor(0, 1);
+    } else if (currentGameType == freeDraw) {
+      lcd.print("Free drawing");
+      lcd.setCursor(0, 1);
+    }
+  }
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    currentGameType = (currentGameType == freeDraw) ? randomBoard : freeDraw;
+    if (currentGameType == randomBoard) {
+      lcd.print("Random board");
+      lcd.setCursor(0, 1);
+    } else if (currentGameType == freeDraw) {
+      lcd.print("Free drawing");
+      lcd.setCursor(0, 1);
+    }
+    cmdExecutedRedSw = true;
   }
 }
 
@@ -576,6 +733,13 @@ void handleResetHighscores() {
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
     lcd.print("Back:N, Btn:Y");
+  }
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    executeResetHighscores();
+    cmdExecutedRedSw = true;
+    isInSubmenu = false;
+    currentState = settings;
+    currentSettingsSubmenu = inMainMenu;
   }
 }
 
@@ -631,15 +795,16 @@ void navigateBackToMainMenu() {
 }
 
 //AUXILIARY FUNCTIONS START HERE
-void generateAutoscrollingText(const char text[], short lineToDisplay) {
-  int textLength = strlen(text);
-  int displayLength = 16;
-  for (int i = 0; i < textLength - displayLength + 1; i++) {
-    lcd.setCursor(0, lineToDisplay);
-    lcd.print(text + i);
-    delay(150);
-  }
-}
+
+// void generateAutoscrollingText(const char text[], short lineToDisplay) {
+//   int textLength = strlen(text);
+//   int displayLength = 16;
+//   for (int i = 0; i < textLength - displayLength + 1; i++) {
+//     lcd.setCursor(0, lineToDisplay);
+//     lcd.print(text + i);
+//     delay(150);
+//   }
+// } function no longer used but will remain in the code as a proof of concept
 
 void addArrowsToDisplay(arrowTypes type) {
   switch (type) {
@@ -735,18 +900,18 @@ void clearLogicalMatrix() {
 // } useless function used for testing the symbols only
 
 void loadParameters() {
-  matrixBrightness = EEPROM.read(adresses[mtxBright]);
-  lcdBrightness = EEPROM.read(adresses[lcdBright]);
+  //matrixBrightness = EEPROM.read(adresses[mtxBright]);
+  //lcdBrightness = EEPROM.read(adresses[lcdBright]);
   autoBrightnessLCD = EEPROM.read(adresses[autoBrightLCD]);
   autoBrightnessMtx = EEPROM.read(adresses[autoBrightMtx]);
   isSoundOn = EEPROM.read(adresses[soundOn]);
 }
 
 void saveParameters() {
-  EEPROM.update(adresses[mtxBright], matrixBrightness);
-  EEPROM.update(adresses[lcdBright], lcdBrightness);
-  EEPROM.update(adresses[autoBrightLCD],autoBrightnessLCD);
-  EEPROM.update(adresses[autoBrightMtx],autoBrightnessMtx);
+  //EEPROM.update(adresses[mtxBright], matrixBrightness);
+  //EEPROM.update(adresses[lcdBright], lcdBrightness);
+  EEPROM.update(adresses[autoBrightLCD], autoBrightnessLCD);
+  EEPROM.update(adresses[autoBrightMtx], autoBrightnessMtx);
   EEPROM.update(adresses[soundOn], isSoundOn);
 }
 
@@ -836,6 +1001,7 @@ void getRedBtnState() {
         redSwState = HIGH;
       } else {
         redSwState = LOW;
+        cmdExecutedRedSw = false;
       }
     }
   }
@@ -845,15 +1011,19 @@ void getRedBtnState() {
 void displayBrightnessController(brightnessLevels targetBrightness) {
   switch (targetBrightness) {
     case lowBrightness:
+      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayLowBrightnessValue);
       break;
     case midBrightness:
+      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayMidBrightnessValue);
       break;
     case highBrightness:
+      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayHighBrightnessValue);
       break;
     case ultraBrightness:
+      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayUltraBrightnessValue);
       break;
     default:
@@ -864,15 +1034,19 @@ void displayBrightnessController(brightnessLevels targetBrightness) {
 void matrixBrightnessController(brightnessLevels targetBrightness) {
   switch (targetBrightness) {
     case lowBrightness:
+      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixLowBrightnessValue);
       break;
     case midBrightness:
+      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixMidBrightnessValue);
       break;
     case highBrightness:
+      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixHighBrightnessValue);
       break;
     case ultraBrightness:
+      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixUltraBrightnessValue);
       break;
     default:
@@ -881,10 +1055,50 @@ void matrixBrightnessController(brightnessLevels targetBrightness) {
 }
 
 void autoBrightnessController() {
-  if (autoBrightnessLCD == true) {
-    //todo
+  if (autoBrightnessLCD == true || autoBrightnessMtx == true) {
+    //enabled only if at least one of the controls is set to automatic to save resources
+    short sampledLightVal = 0;
+    if ((millis() - prevMillisRefresh) >= updateRate) {
+      prevMillisRefresh = millis();
+      sampledLightVal = map(analogRead(ambientLightSensor), 0, 1023, 0, 100);
+    }
+    if (autoBrightnessLCD == true) {
+      if (sampledLightVal < minThresholdValueLight) {
+        displayBrightnessController(lowBrightness);
+      }
+      if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
+        displayBrightnessController(midBrightness);
+      }
+      if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
+        displayBrightnessController(highBrightness);
+      }
+      if (sampledLightVal > highThresholdValueLight) {
+        displayBrightnessController(ultraBrightness);
+      }
+    }
+    if (autoBrightnessMtx == true) {
+      if (sampledLightVal < minThresholdValueLight) {
+        matrixBrightnessController(lowBrightness);
+      }
+      if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
+        matrixBrightnessController(midBrightness);
+      }
+      if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
+        matrixBrightnessController(highBrightness);
+      }
+      if (sampledLightVal > highThresholdValueLight) {
+        matrixBrightnessController(ultraBrightness);
+      }
+    }
   }
-  if(autoBrightnessMtx == true){
-    //todo
+}
+
+void buzzerController(unsigned int frequency) {
+  if (isSoundOn == true) {
+    tone(buzzerPin, frequency, soundDuration);
   }
+}
+
+void executeResetHighscores() {
+  Serial.println("Placeholder");
 }
