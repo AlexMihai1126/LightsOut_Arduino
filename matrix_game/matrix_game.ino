@@ -69,15 +69,15 @@ byte logicalMatrix[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
-byte mainMenuICO[matrixSize][matrixSize] = {
-  { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 1, 1, 0, 0, 0 },
-  { 0, 0, 1, 0, 0, 1, 0, 0 },
+byte deleteICO[matrixSize][matrixSize] = {
+  { 0, 0, 1, 1, 1, 1, 0, 0 },
   { 0, 1, 0, 0, 0, 0, 1, 0 },
-  { 1, 0, 0, 0, 0, 0, 0, 1 },
-  { 1, 0, 0, 0, 0, 0, 0, 1 },
-  { 1, 0, 0, 0, 0, 0, 0, 1 },
-  { 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 0, 1, 0, 0, 1, 0, 1 },
+  { 1, 0, 0, 1, 1, 0, 0, 1 },
+  { 1, 0, 0, 1, 1, 0, 0, 1 },
+  { 1, 0, 1, 0, 0, 1, 0, 1 },
+  { 0, 1, 0, 0, 0, 0, 1, 0 },
+  { 0, 0, 1, 1, 1, 1, 0, 0 }
 };
 
 byte atSymbolICO[matrixSize][matrixSize] = {
@@ -365,6 +365,7 @@ void handleStartGame() {
     lcd.print("Start game:");
     lcd.setCursor(0, 1);
     lcd.print("Press button!");
+    copyByteMatrix(smileyICO, logicalMatrix);
   }
 }
 
@@ -373,6 +374,7 @@ void handleHighscores() {
     lcd.print("View highscores");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
+    copyByteMatrix(highscoreICO, logicalMatrix);
   }
   if (joySwState == HIGH && !isInSubmenu) {
   }
@@ -383,6 +385,7 @@ void handleSettings() {
     lcd.print("SETTINGS");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
+    copyByteMatrix(settingsICO, logicalMatrix);
   }
 
   if (joySwState == HIGH && !isInSubmenu) {
@@ -395,18 +398,18 @@ void handleSettings() {
 void handleAbout() {
   if (currentState != previousState) {
     lcd.print("About the game");
-    delay(500);
-    generateAutoscrollingText("Created by Alexandru Mihai", 1);
-    delay(500);
-    generateAutoscrollingText("GitHub: AlexMihai1126", 1);
+    lcd.print("Lights OUT");
+    copyByteMatrix(atSymbolICO, logicalMatrix);
   }
+  //on joystick press get info about creator
 }
 
 void handleTutorial() {
   if (currentState != previousState) {
     lcd.print("How to play:");
-    Serial.println("How to play:");
+    copyByteMatrix(helpICO, logicalMatrix);
   }
+  //scrollable menu with instructions
 }
 
 void handleMenuNavigation() {
@@ -474,37 +477,43 @@ void handleSettingsSubmenus() {
 
 void handleNameInput() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in name input");
+    lcd.print("Input name:");
+    copyByteMatrix(atSymbolICO, logicalMatrix);
   }
 }
 
 void handleMtxBrightCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in mtx input");
+    lcd.print("Mtx brightness:");
+    copyByteMatrix(lightICO, logicalMatrix);
   }
 }
 
 void handleLcdBrightCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in lcd input");
+    lcd.print("LCD Brightness:");
+    copyByteMatrix(lightICO, logicalMatrix);
   }
 }
 
 void handleSoundCtrl() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in sound input");
+    lcd.print("Game sounds:");
+    copyByteMatrix(musicICO, logicalMatrix);
   }
 }
 
 void handleGameTypeSelect() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in game input");
+    lcd.print("Game type:");
+    copyByteMatrix(smileyICO, logicalMatrix);
   }
 }
 
 void handleResetHighscores() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("in rst input");
+    lcd.print("Reset highscores?");
+    copyByteMatrix(deleteICO, logicalMatrix);
   }
 }
 
