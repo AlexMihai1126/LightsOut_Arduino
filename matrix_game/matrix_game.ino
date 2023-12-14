@@ -18,7 +18,7 @@
 #define joystickSw A4
 #define ambientLightSensor A3
 #define matrixSize 8
-#define storedParametersCount 6
+#define storedParametersCount 7
 #define blinkInterval 250
 #define maxCharsName 8
 #define maxGameLevels 4
@@ -56,6 +56,17 @@ byte downArrowChar[8] = {
   0b01110,
   0b00100,
   0b00000
+};
+
+byte enterSymbol[8] = {
+  0b00001,
+  0b00001,
+  0b00001,
+  0b00101,
+  0b01001,
+  0b11111,
+  0b01000,
+  0b00100
 };
 
 byte logicalMatrix[matrixSize][matrixSize] = {
@@ -163,7 +174,8 @@ enum brightnessLevels {
   lowBrightness,
   midBrightness,
   highBrightness,
-  ultraBrightness
+  ultraBrightness,
+  autoB
 };
 
 enum mainMenuStates {
@@ -210,7 +222,8 @@ gameType currentGameType = randomBoard;
 enum storedParameters {
   mtxBright,
   lcdBright,
-  autoBright,
+  autoBrightLCD,
+  autoBrightMtx,
   soundOn,
   lastLevel,
   highscoreStartAddr
@@ -231,7 +244,8 @@ enum arrowTypes {
   downArr,
   upDownArr,
   backArrow,
-  forwardArrow
+  forwardArrow,
+  enterArrow
 };
 
 struct highscore {
@@ -239,11 +253,12 @@ struct highscore {
   int scoreValue = 0;
 };
 
-const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5 };
+const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5,6 };
 
 byte matrixBrightness = 2;
 byte lcdBrightness = 127;
-bool autoBrightness = false;
+bool autoBrightnessLCD = false;
+bool autoBrightnessMtx = false;
 bool isSoundOn = true;  //defaults
 
 bool introHasAppeared = false;
@@ -251,6 +266,9 @@ bool isInGame = false;
 bool joystickMoved = false;
 bool cmdExecuted = false;
 bool isInSubmenu = false;
+bool leftMovementEnabled = true;
+bool upMovementEnabled = true;
+bool downMovementEnabled = true;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -287,6 +305,7 @@ void setup() {
   lcd.clear();
   lcd.createChar(1, upArrowChar);
   lcd.createChar(2, downArrowChar);
+  lcd.createChar(3, enterSymbol);
   pinMode(buzzerPin, OUTPUT);
   pinMode(redPushbtn, INPUT_PULLUP);
   pinMode(joystickSw, INPUT_PULLUP);
@@ -321,6 +340,9 @@ void loop() {
       handleMenuNavigation();  // Handle main menu navigation based on debounced joystick state
       handleMenu();            // Handle the current main menu state
     }
+  }
+  if(autoBrightnessLCD == true || autoBrightnessMtx == true){
+    autoBrightnessController(); //enabled only if at least one of the controls is set to automatic to save resources
   }
 }
 
@@ -382,6 +404,7 @@ void handleHighscores() {
     lcd.print("Highscores:");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
+    addArrowsToDisplay(enterArrow);
     copyByteMatrix(highscoreICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
   }
@@ -390,19 +413,20 @@ void handleHighscores() {
 }
 
 void handleSettings() {
-  if (currentState != previousState) {
+  if (currentState != previousState && isInSubmenu == false) {
     lcd.print("Settings:");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
     copyByteMatrix(settingsICO, logicalMatrix);
+    addArrowsToDisplay(enterArrow);
     addArrowsToDisplay(upDownArr);
   }
 
   if (joySwState == HIGH && !isInSubmenu) {
     isInSubmenu = true;
     currentState = inSubmenu;
-    currentSettingsSubmenu = nameInput;  // Set the initial submenu state
-    handleSettingsSubmenus();            // Enter the submenu immediately
+    currentSettingsSubmenu = nameInput;
+    handleSettingsSubmenus();
   }
 }
 void handleAbout() {
@@ -411,6 +435,7 @@ void handleAbout() {
     lcd.setCursor(0, 1);
     lcd.print("Lights OUT");
     copyByteMatrix(atSymbolICO, logicalMatrix);
+    addArrowsToDisplay(enterArrow);
     addArrowsToDisplay(upDownArr);
   }
   //on joystick press get info about creator
@@ -421,6 +446,7 @@ void handleTutorial() {
     lcd.print("How to play:");
     lcd.setCursor(0, 1);
     lcd.print("Press joystick");
+    addArrowsToDisplay(enterArrow);
     copyByteMatrix(helpICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
   }
@@ -495,6 +521,7 @@ void handleNameInput() {
     lcd.print("Input name:");
     copyByteMatrix(atSymbolICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
   }
 }
 
@@ -503,6 +530,9 @@ void handleMtxBrightCtrl() {
     lcd.print("Mtx brightness:");
     copyByteMatrix(lightICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+    lcd.print("Cycle: ");
+    lcd.setCursor(7, 1);
   }
 }
 
@@ -511,6 +541,9 @@ void handleLcdBrightCtrl() {
     lcd.print("LCD Brightness:");
     copyByteMatrix(lightICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+    lcd.print("Cycle: ");
+    lcd.setCursor(7, 1);
   }
 }
 
@@ -519,6 +552,9 @@ void handleSoundCtrl() {
     lcd.print("Game sounds:");
     copyByteMatrix(musicICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+    lcd.print("Cycle: ");
+    lcd.setCursor(7, 1);
   }
 }
 
@@ -527,24 +563,40 @@ void handleGameTypeSelect() {
     lcd.print("Game type:");
     copyByteMatrix(smileyICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+    lcd.print("Cycle: ");
+    lcd.setCursor(7, 1);
   }
 }
 
 void handleResetHighscores() {
   if (currentSettingsSubmenu != previousSubmenuState) {
-    lcd.print("Reset highscores?");
+    lcd.print("Rst highscores?");
     copyByteMatrix(deleteICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+    lcd.print("Back:N, Btn:Y");
   }
 }
 
 void handleSubmenuNavigation() {
   switch (joyState) {
     case UP:
-      navigateSubmenuUp();
+      if (upMovementEnabled) {
+        navigateSubmenuUp();
+      }
+
       break;
     case DOWN:
-      navigateSubmenuDown();
+      if (downMovementEnabled) {
+        navigateSubmenuDown();
+      }
+
+      break;
+    case LEFT:
+      if (leftMovementEnabled) {
+        navigateBackToMainMenu();
+      }
       break;
     default:
       break;
@@ -566,6 +618,15 @@ void navigateSubmenuDown() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
     currentSettingsSubmenu = static_cast<submenuStates>((currentSettingsSubmenu + 1) % maxAccesibleSubmenuStates);
+  }
+}
+
+void navigateBackToMainMenu() {
+  if (cmdExecuted == false) {
+    cmdExecuted = true;
+    isInSubmenu = false;
+    currentState = settings;
+    currentSettingsSubmenu = inMainMenu;
   }
 }
 
@@ -611,6 +672,10 @@ void addArrowsToDisplay(arrowTypes type) {
       lcd.print(" ");
       lcd.setCursor(15, 1);
       lcd.print(">");
+      break;
+    case enterArrow:
+      lcd.setCursor(14, 1);
+      lcd.write((byte)3);
       break;
     default:
       break;
@@ -672,14 +737,16 @@ void clearLogicalMatrix() {
 void loadParameters() {
   matrixBrightness = EEPROM.read(adresses[mtxBright]);
   lcdBrightness = EEPROM.read(adresses[lcdBright]);
-  autoBrightness = EEPROM.read(adresses[autoBright]);
+  autoBrightnessLCD = EEPROM.read(adresses[autoBrightLCD]);
+  autoBrightnessMtx = EEPROM.read(adresses[autoBrightMtx]);
   isSoundOn = EEPROM.read(adresses[soundOn]);
 }
 
 void saveParameters() {
   EEPROM.update(adresses[mtxBright], matrixBrightness);
   EEPROM.update(adresses[lcdBright], lcdBrightness);
-  EEPROM.update(adresses[autoBright], autoBrightness);
+  EEPROM.update(adresses[autoBrightLCD],autoBrightnessLCD);
+  EEPROM.update(adresses[autoBrightMtx],autoBrightnessMtx);
   EEPROM.update(adresses[soundOn], isSoundOn);
 }
 
@@ -814,7 +881,10 @@ void matrixBrightnessController(brightnessLevels targetBrightness) {
 }
 
 void autoBrightnessController() {
-  if (autoBrightness == true) {
+  if (autoBrightnessLCD == true) {
+    //todo
+  }
+  if(autoBrightnessMtx == true){
     //todo
   }
 }
