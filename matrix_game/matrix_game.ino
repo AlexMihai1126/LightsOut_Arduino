@@ -34,6 +34,7 @@
 #define displayMidBrightnessValue 125
 #define displayHighBrightnessValue 175
 #define displayUltraBrightnessValue 255
+#define noOfSymbols 36
 
 byte upArrowChar[8] = {
   0b00000,
@@ -236,7 +237,7 @@ struct highscore {
   int scoreValue = 0;
 };
 
-short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5 };
+const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5 };
 
 byte matrixBrightness = 2;
 byte lcdBrightness = 127;
@@ -255,10 +256,10 @@ byte joySwStateLastReading = LOW;
 
 byte redSwReading = LOW;
 byte redSwState = LOW;
-byte SwStateLastReading = LOW;
+byte redSwStateLastReading = LOW;
 
-int minThreshold = 480;
-int maxThreshold = 550;
+const short minThreshold = 480;
+const short maxThreshold = 550;
 int xValue = 0;
 int yValue = 0;
 
@@ -272,6 +273,8 @@ unsigned long lastDebounceTimeRedSw = 0;
 highscore hs1;
 highscore hs2;
 highscore hs3;
+
+const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
@@ -304,6 +307,7 @@ void loop() {
   displayMatrix();
   getJoystickState();
   getJoySwitchState();
+  getRedBtnState();
   if (!isInGame) {
     if (isInSubmenu) {
       handleSubmenuNavigation();  // Handle submenu navigation based on debounced joystick state
@@ -650,12 +654,6 @@ void saveHighscoresAndLevel() {
 }
 
 //HARDWARE CONTROL FUNCTIONS START HERE
-void autoBrightnessController() {
-  if (autoBrightness == true) {
-    //todo
-  }
-}
-
 void getJoystickState() {
   xValue = analogRead(joystickX);
   yValue = analogRead(joystickY);
@@ -697,7 +695,6 @@ void getJoySwitchState() {
 
   if ((millis() - lastDebounceTimeJoySw) >= debounceTime) {
     if (joySwReading != joySwState) {
-      joySwState = joySwReading;
       if (joySwReading == HIGH) {
         joySwState = HIGH;
       } else {
@@ -706,6 +703,24 @@ void getJoySwitchState() {
     }
   }
   joySwStateLastReading = joySwReading;
+}
+
+void getRedBtnState() {
+  redSwReading = !digitalRead(redPushbtn);
+  if (redSwReading != redSwStateLastReading) {
+    lastDebounceTimeRedSw = millis();
+  }
+
+  if ((millis() - lastDebounceTimeJoySw) >= debounceTime) {
+    if (redSwReading != redSwState) {
+      if (redSwReading == HIGH) {
+        redSwState = HIGH;
+      } else {
+        redSwState = LOW;
+      }
+    }
+  }
+  redSwStateLastReading = redSwReading;
 }
 
 void displayBrightnessController(brightnessLevels targetBrightness) {
@@ -743,5 +758,11 @@ void matrixBrightnessController(brightnessLevels targetBrightness) {
       break;
     default:
       break;
+  }
+}
+
+void autoBrightnessController() {
+  if (autoBrightness == true) {
+    //todo
   }
 }
