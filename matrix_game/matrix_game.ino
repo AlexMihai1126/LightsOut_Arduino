@@ -12,10 +12,10 @@
 #define displayEN 13
 #define displayRS 2
 #define buzzerPin 3
-#define redPushbtn A4
+#define redPushbtn A0
 #define joystickX A1
 #define joystickY A2
-#define joystickSw A0
+#define joystickSw A4
 #define ambientLightSensor A3
 #define matrixSize 8
 #define storedParametersCount 6
@@ -23,31 +23,38 @@
 #define maxCharsName 8
 #define maxGameLevels 4
 #define maxAccesibleMenuStates 5
-#define maxAccesibleInternalMenus 2
-#define maxAccesibleSettingsSubmenus 5
+#define maxAccesibleSubmenuStates 6
 #define noOfMatrix 1
 #define matrixId 0
+#define matrixLowBrightnessValue 1
+#define matrixMidBrightnessValue 3
+#define matrixHighBrightnessValue 6
+#define matrixUltraBrightnessValue 9
+#define displayLowBrightnessValue 50
+#define displayMidBrightnessValue 125
+#define displayHighBrightnessValue 175
+#define displayUltraBrightnessValue 255
 
 byte upArrowChar[8] = {
-	0b00000,
-	0b00100,
-	0b01110,
-	0b10101,
-	0b00100,
-	0b00100,
-	0b00100,
-	0b00000
+  0b00000,
+  0b00100,
+  0b01110,
+  0b10101,
+  0b00100,
+  0b00100,
+  0b00100,
+  0b00000
 };
 
 byte downArrowChar[8] = {
-	0b00000,
-	0b00100,
-	0b00100,
-	0b00100,
-	0b10101,
-	0b01110,
-	0b00100,
-	0b00000
+  0b00000,
+  0b00100,
+  0b00100,
+  0b00100,
+  0b10101,
+  0b01110,
+  0b00100,
+  0b00000
 };
 
 byte logicalMatrix[matrixSize][matrixSize] = {
@@ -179,25 +186,25 @@ enum internalMenuStates {
 
 internalMenuStates currInternalMenuState = inOtherMenu;
 
-enum settingsSubmenus {
+enum submenuStates {
   nameInput,
   mtxBrightCtrl,
   lcdBrightCtrl,
   soundCtrl,
-  gameLevel,
+  gameTypeSelect,
   resetHighscores,
   inMainMenu
 };
 
-settingsSubmenus currentSettingsSubmenu = inMainMenu;
+submenuStates currentSettingsSubmenu = inMainMenu;
+submenuStates previousSubmenuState = inMainMenu;
 
-enum gameLevels {
-  easy,
-  normal,
-  hard
+enum gameType {
+  randomBoard,
+  freeDraw
 };
 
-gameLevels currentLevel = easy;
+gameType currentGameType = randomBoard;
 
 enum storedParameters {
   mtxBright,
@@ -240,6 +247,7 @@ bool introHasAppeared = false;
 bool isInGame = false;
 bool joystickMoved = false;
 bool cmdExecuted = false;
+bool isInSubmenu = false;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -281,7 +289,7 @@ void setup() {
   analogWrite(displayBacklight, lcdBrightness);
   lcd.print("STARTING UP...");
   loadParameters();
-  loadHighscores();
+  loadHighscoresAndLevel();
   matrix.shutdown(matrixId, false);
   matrix.setIntensity(matrixId, matrixBrightness);
   matrix.clearDisplay(matrixId);
@@ -295,9 +303,285 @@ void setup() {
 void loop() {
   displayMatrix();
   getJoystickState();
+  getJoySwitchState();
   if (!isInGame) {
-    handleMenuNavigation();
+    if (isInSubmenu) {
+      handleSubmenuNavigation();  // Handle submenu navigation based on debounced joystick state
+      handleSettingsSubmenus();   // Handle the current submenu state
+    } else {
+      handleMenuNavigation();  // Handle main menu navigation based on debounced joystick state
+      handleMenu();            // Handle the current main menu state
+    }
+  }
+}
+
+//MAIN MENU FUNCTIONS START HERE
+void handleMenu() {
+  if (currentState != previousState) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+  }
+  switch (currentState) {
+    case intro:
+      handleIntro();
+      break;
+    case startGame:
+      handleStartGame();
+      break;
+    case highscores:
+      handleHighscores();
+      break;
+    case settings:
+      handleSettings();
+      break;
+    case about:
+      handleAbout();
+      break;
+    case tutorial:
+      handleTutorial();
+      break;
+    default:
+      break;
+  }
+  previousState = currentState;
+}
+
+void handleIntro() {
+  if (introHasAppeared == false) {
+    lcd.print("Welcome!");
+    introHasAppeared = true;
+    currentState = startGame;
+    delay(1000);  //only for test purposes will be removed in the project
     handleMenu();
+  }
+}
+
+void handleStartGame() {
+  if (currentState != previousState) {
+    lcd.print("Start game:");
+    lcd.setCursor(0, 1);
+    lcd.print("Press button!");
+  }
+}
+
+void handleHighscores() {
+  if (currentState != previousState) {
+    lcd.print("View highscores");
+    lcd.setCursor(0, 1);
+    lcd.print("Press joystick");
+  }
+  if (joySwState == HIGH && !isInSubmenu) {
+  }
+}
+
+void handleSettings() {
+  if (currentState != previousState) {
+    lcd.print("SETTINGS");
+    lcd.setCursor(0, 1);
+    lcd.print("Press joystick");
+  }
+
+  if (joySwState == HIGH && !isInSubmenu) {
+    isInSubmenu = true;
+    currentState = inSubmenu;
+    currentSettingsSubmenu = nameInput;  // Set the initial submenu state
+    handleSettingsSubmenus();            // Enter the submenu immediately
+  }
+}
+void handleAbout() {
+  if (currentState != previousState) {
+    lcd.print("About the game");
+    delay(500);
+    generateAutoscrollingText("Created by Alexandru Mihai", 1);
+    delay(500);
+    generateAutoscrollingText("GitHub: AlexMihai1126", 1);
+  }
+}
+
+void handleTutorial() {
+  if (currentState != previousState) {
+    lcd.print("How to play:");
+    Serial.println("How to play:");
+  }
+}
+
+void handleMenuNavigation() {
+  switch (joyState) {
+    case UP:
+      navigateMenuUp();
+      break;
+    case DOWN:
+      navigateMenuDown();
+      break;
+    default:
+      break;
+  }
+}
+
+void navigateMenuUp() {
+  if (cmdExecuted == false) {
+    cmdExecuted = true;
+    if (currentState > 0) {
+      currentState = static_cast<mainMenuStates>(currentState - 1);
+    } else {
+      currentState = static_cast<mainMenuStates>(maxAccesibleMenuStates - 1);
+    }
+  }
+}
+
+void navigateMenuDown() {
+  if (cmdExecuted == false) {
+    cmdExecuted = true;
+    currentState = static_cast<mainMenuStates>((currentState + 1) % maxAccesibleMenuStates);
+  }
+}
+
+
+//SUBMENU FUNCTIONS START HERE
+void handleSettingsSubmenus() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+  }
+  switch (currentSettingsSubmenu) {
+    case nameInput:
+      handleNameInput();
+      break;
+    case mtxBrightCtrl:
+      handleMtxBrightCtrl();
+      break;
+    case lcdBrightCtrl:
+      handleLcdBrightCtrl();
+      break;
+    case soundCtrl:
+      handleSoundCtrl();
+      break;
+    case gameTypeSelect:
+      handleGameTypeSelect();
+      break;
+    case resetHighscores:
+      handleResetHighscores();
+      break;
+    default:
+      break;
+  }
+  previousSubmenuState = currentSettingsSubmenu;
+}
+
+void handleNameInput() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in name input");
+  }
+}
+
+void handleMtxBrightCtrl() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in mtx input");
+  }
+}
+
+void handleLcdBrightCtrl() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in lcd input");
+  }
+}
+
+void handleSoundCtrl() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in sound input");
+  }
+}
+
+void handleGameTypeSelect() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in game input");
+  }
+}
+
+void handleResetHighscores() {
+  if (currentSettingsSubmenu != previousSubmenuState) {
+    lcd.print("in rst input");
+  }
+}
+
+void handleSubmenuNavigation() {
+  switch (joyState) {
+    case UP:
+      navigateSubmenuUp();
+      break;
+    case DOWN:
+      navigateSubmenuDown();
+      break;
+    default:
+      break;
+  }
+}
+
+void navigateSubmenuUp() {
+  if (cmdExecuted == false) {
+    cmdExecuted = true;
+    if (currentSettingsSubmenu > 0) {
+      currentSettingsSubmenu = static_cast<submenuStates>(currentSettingsSubmenu - 1);
+    } else {
+      currentSettingsSubmenu = static_cast<submenuStates>(maxAccesibleSubmenuStates - 1);
+    }
+  }
+}
+
+void navigateSubmenuDown() {
+  if (cmdExecuted == false) {
+    cmdExecuted = true;
+    currentSettingsSubmenu = static_cast<submenuStates>((currentSettingsSubmenu + 1) % maxAccesibleSubmenuStates);
+  }
+}
+
+//AUXILIARY FUNCTIONS START HERE
+void generateAutoscrollingText(const char text[], short lineToDisplay) {
+  int textLength = strlen(text);
+  int displayLength = 16;
+  for (int i = 0; i < textLength - displayLength + 1; i++) {
+    lcd.setCursor(0, lineToDisplay);
+    lcd.print(text + i);
+    delay(150);
+  }
+}
+
+void addArrowsToDisplay(arrowTypes type) {
+  switch (type) {
+    case upArr:
+      lcd.setCursor(16, 0);
+      lcd.print("1");
+      break;
+    case downArr:
+      break;
+    case bothArr:
+      break;
+    default:
+      break;
+  }
+}
+
+void displayMatrix() {
+  for (int row = 0; row < matrixSize; row++) {
+    for (int col = 0; col < matrixSize; col++) {
+      matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
+    }
+  }
+}
+
+void copyByteMatrix(byte matrixFrom[matrixSize][matrixSize], byte matrixTo[matrixSize][matrixSize]) {
+  for (int i = 0; i < matrixSize; i++) {
+    for (int j = 0; j < matrixSize; j++) {
+      matrixTo[i][j] = matrixFrom[i][j];
+    }
+  }
+}
+
+void clearLogicalMatrix() {
+  for (int i = 0; i < matrixSize; i++) {
+    for (int j = 0; j < matrixSize; j++) {
+      logicalMatrix[i][j] = 0;
+    }
   }
 }
 
@@ -327,7 +611,7 @@ void loop() {
 //   displayMatrix();
 //   delay(500);
 //   clearLogicalMatrix();
-// }
+// } useless function used for testing the symbols only
 
 void loadParameters() {
   matrixBrightness = EEPROM.read(adresses[mtxBright]);
@@ -336,23 +620,36 @@ void loadParameters() {
   isSoundOn = EEPROM.read(adresses[soundOn]);
 }
 
-void loadHighscores() {
+void saveParameters() {
+  EEPROM.update(adresses[mtxBright], matrixBrightness);
+  EEPROM.update(adresses[lcdBright], lcdBrightness);
+  EEPROM.update(adresses[autoBright], autoBrightness);
+  EEPROM.update(adresses[soundOn], isSoundOn);
+}
+
+void loadHighscoresAndLevel() {
   short readAdress = adresses[highscoreStartAddr] + sizeof(highscore);
   EEPROM.get(readAdress, hs1);
   readAdress += sizeof(highscore);
   EEPROM.get(readAdress, hs2);
   readAdress += sizeof(highscore);
   EEPROM.get(readAdress, hs3);
+  readAdress += sizeof(currentGameType);
+  EEPROM.get(readAdress, currentGameType);
 }
 
-void displayMatrix() {
-  for (int row = 0; row < matrixSize; row++) {
-    for (int col = 0; col < matrixSize; col++) {
-      matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
-    }
-  }
+void saveHighscoresAndLevel() {
+  short writeAdress = adresses[highscoreStartAddr] + sizeof(highscore);
+  EEPROM.put(writeAdress, hs1);
+  writeAdress += sizeof(highscore);
+  EEPROM.put(writeAdress, hs2);
+  writeAdress += sizeof(highscore);
+  EEPROM.put(writeAdress, hs3);
+  writeAdress += sizeof(gameType);
+  EEPROM.put(writeAdress, currentGameType);
 }
 
+//HARDWARE CONTROL FUNCTIONS START HERE
 void autoBrightnessController() {
   if (autoBrightness == true) {
     //todo
@@ -411,146 +708,40 @@ void getJoySwitchState() {
   joySwStateLastReading = joySwReading;
 }
 
-void handleMenu() {
-  if (currentState != previousState) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    switch (currentState) {
-      case intro:
-        handleIntro();
-        break;
-      case startGame:
-        handleStartGame();
-        break;
-      case highscores:
-        handleHighscores();
-        break;
-      case settings:
-        handleSettings();
-        break;
-      case about:
-        handleAbout();
-        break;
-      case tutorial:
-        handleTutorial();
-        break;
-      default:
-        break;
-    }
-  }
-  previousState = currentState;
-}
-
-void generateAutoscrollingText(const char text[], short lineToDisplay) {
-  int textLength = strlen(text);
-  int displayLength = 16;
-  for (int i = 0; i < textLength - displayLength + 1; i++) {
-    lcd.setCursor(0, lineToDisplay);
-    lcd.print(text + i);
-    delay(150);
-  }
-}
-
-void handleIntro() {
-  if (introHasAppeared == false) {
-    lcd.print("Welcome!");
-    introHasAppeared = true;
-    currentState = startGame;
-    delay(1000);  //only for test purposes will be removed in the project
-    handleMenu();
-  }
-}
-
-void handleStartGame() {
-  lcd.print("Start game:");
-  generateAutoscrollingText("Press the RED button to start!", 1);
-}
-
-void handleHighscores() {
-  lcd.print("View highscores");
-  lcd.setCursor(0, 1);
-  lcd.print("Press joystick");
-  //on joystick press will enter a function that will display all highscores, one at a time, for 3 sec each, then go back to main menu;
-}
-
-void handleSettings() {
-  lcd.print("SETTINGS");
-  lcd.setCursor(0, 1);
-  lcd.print("Press joystick");
-  //on click will move to inSubmenu state then handleSettingsSubmenus() will be called
-}
-
-void handleAbout() {
-  lcd.print("About the game");
-  delay(500);
-  generateAutoscrollingText("Created by Alexandru Mihai", 1);
-  delay(500);
-  generateAutoscrollingText("GitHub: AlexMihai1126", 1);
-}
-
-void handleTutorial() {
-  lcd.print("Tutorial:");
-  generateAutoscrollingText("Game idea not finalized", 1);
-}
-
-void handleMenuNavigation() {
-  switch (joyState) {
-    case UP:
-      navigateMenuUp();
+void displayBrightnessController(brightnessLevels targetBrightness) {
+  switch (targetBrightness) {
+    case lowBrightness:
+      analogWrite(displayBacklight, displayLowBrightnessValue);
       break;
-    case DOWN:
-      navigateMenuDown();
+    case midBrightness:
+      analogWrite(displayBacklight, displayMidBrightnessValue);
+      break;
+    case highBrightness:
+      analogWrite(displayBacklight, displayHighBrightnessValue);
+      break;
+    case ultraBrightness:
+      analogWrite(displayBacklight, displayUltraBrightnessValue);
       break;
     default:
       break;
   }
 }
 
-void navigateMenuUp() {
-  if (cmdExecuted == false) {
-    cmdExecuted = true;
-    if (currentState > 0) {
-      currentState = static_cast<mainMenuStates>(currentState - 1);
-    } else {
-      currentState = static_cast<mainMenuStates>(maxAccesibleMenuStates - 1);
-    }
-  }
-}
-
-void navigateMenuDown() {
-  if (cmdExecuted == false) {
-    cmdExecuted = true;
-    currentState = static_cast<mainMenuStates>((currentState + 1) % maxAccesibleMenuStates);
-  }
-}
-
-void addArrowsToDisplay(arrowTypes type) {
-  switch (type) {
-    case upArr:
-    lcd.setCursor(16, 0);
-    lcd.print("1");
+void matrixBrightnessController(brightnessLevels targetBrightness) {
+  switch (targetBrightness) {
+    case lowBrightness:
+      matrix.setIntensity(matrixId, matrixLowBrightnessValue);
       break;
-    case downArr:
+    case midBrightness:
+      matrix.setIntensity(matrixId, matrixMidBrightnessValue);
       break;
-    case bothArr:
+    case highBrightness:
+      matrix.setIntensity(matrixId, matrixHighBrightnessValue);
+      break;
+    case ultraBrightness:
+      matrix.setIntensity(matrixId, matrixUltraBrightnessValue);
       break;
     default:
       break;
-  }
-}
-
-void copyByteMatrix(byte matrixFrom[matrixSize][matrixSize], byte matrixTo[matrixSize][matrixSize]){
-  for(int i=0;i<matrixSize;i++){
-    for(int j=0;j<matrixSize;j++){
-      matrixTo[i][j] = matrixFrom[i][j];
-    }
-  }
-}
-
-void clearLogicalMatrix(){
-   for(int i=0;i<matrixSize;i++){
-    for(int j=0;j<matrixSize;j++){
-      logicalMatrix[i][j] = 0;
-    }
   }
 }
