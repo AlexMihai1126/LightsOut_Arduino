@@ -18,7 +18,6 @@
 #define joystickSw A4
 #define ambientLightSensor A3
 #define matrixSize 8
-#define storedParametersCount 7
 #define blinkInterval 250
 #define maxCharsName 8
 #define maxGameLevels 4
@@ -41,7 +40,10 @@
 #define midThresholdValueLight 25
 #define highThresholdValueLight 40
 #define soundDuration 250
+#define startupFreqSound 500
 #define noOfBrightnessLevels 5
+#define soundOnAddr 0
+#define highscoreStartAddr 100
 
 byte upArrowChar[8] = {
   0b00000,
@@ -229,16 +231,6 @@ enum gameType {
 
 gameType currentGameType = randomBoard;
 
-enum storedParameters {
-  mtxBright,
-  lcdBright,
-  autoBrightLCD,
-  autoBrightMtx,
-  soundOn,
-  lastLevel,
-  highscoreStartAddr
-};
-
 enum joystickState {
   UP,
   DOWN,
@@ -263,13 +255,9 @@ struct highscore {
   int scoreValue = 0;
 };
 
-const short adresses[storedParametersCount] = { 0, 1, 2, 3, 4, 5, 6 };
-
-//byte matrixBrightness = 2;
-//byte lcdBrightness = 127;
+bool isSoundOn = true;  //defaults
 bool autoBrightnessLCD = true;
 bool autoBrightnessMtx = true;
-bool isSoundOn = true;  //defaults
 
 bool introHasAppeared = false;
 bool isInGame = false;
@@ -296,7 +284,7 @@ int xValue = 0;
 int yValue = 0;
 
 const unsigned long debounceTime = 100;
-const unsigned long introShowTime = 5000;
+const unsigned long introShowTime = 2500;
 
 unsigned long startIntroTime = 0;
 unsigned long lastDebounceTimeJoySw = 0;
@@ -312,7 +300,7 @@ const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
-//TODO REWRITE SAVE AND LOAD FUNCTIONS FOR THE NEW ENUM DATA TYPES BRIGHTNESS!!! debug auto brightness state
+//TODO REWRITE SAVE AND LOAD FUNCTIONS FOR THE NEW ENUM DATA TYPES BRIGHTNESS!!! debug auto brightness state and add delete confirmation message
 void setup() {
   autoBrightnessLCD = false;
   autoBrightnessMtx = false;  //due to compiler optimizations it will not upload the auto brightness controller if one of these values is false during compile time so we start with true and then instantly disable them
@@ -330,15 +318,17 @@ void setup() {
   pinMode(displayBacklight, OUTPUT);
   displayBrightnessController(currLcdBrightness);
   lcd.print("STARTING UP...");
-  //loadParameters();
-  //loadHighscoresAndLevel();
+  loadParameters();
+  displayLoadedParameters();
+  loadHighscores();
+  displayLoadedHighscores();
   matrix.shutdown(matrixId, false);
   matrixBrightnessController(currMtxBrightness);
   matrix.clearDisplay(matrixId);
   randomSeed(analogRead(A5));
   currentState = intro;  //switch to intro state after the setup runs
   Serial.begin(9600);
-  tone(buzzerPin, 500, 250);
+  buzzerController(startupFreqSound,soundDuration);
   //clearLogicalMatrix();
 }
 
@@ -900,42 +890,85 @@ void clearLogicalMatrix() {
 // } useless function used for testing the symbols only
 
 void loadParameters() {
-  //matrixBrightness = EEPROM.read(adresses[mtxBright]);
-  //lcdBrightness = EEPROM.read(adresses[lcdBright]);
-  autoBrightnessLCD = EEPROM.read(adresses[autoBrightLCD]);
-  autoBrightnessMtx = EEPROM.read(adresses[autoBrightMtx]);
-  isSoundOn = EEPROM.read(adresses[soundOn]);
+  int readAddr = soundOnAddr;
+  isSoundOn = EEPROM.read(readAddr);
+  readAddr+= sizeof(brightnessLevels);
+  EEPROM.get(readAddr,currLcdBrightness);
+  readAddr+= sizeof(brightnessLevels);
+  EEPROM.get(readAddr,currMtxBrightness);
+  readAddr += sizeof(currentGameType);
+  EEPROM.get(readAddr, currentGameType);
 }
 
 void saveParameters() {
-  //EEPROM.update(adresses[mtxBright], matrixBrightness);
-  //EEPROM.update(adresses[lcdBright], lcdBrightness);
-  EEPROM.update(adresses[autoBrightLCD], autoBrightnessLCD);
-  EEPROM.update(adresses[autoBrightMtx], autoBrightnessMtx);
-  EEPROM.update(adresses[soundOn], isSoundOn);
+  int writeAddr = soundOnAddr;
+  EEPROM.update(writeAddr, isSoundOn);
+  writeAddr+= sizeof(brightnessLevels);
+  EEPROM.put(writeAddr,currLcdBrightness);
+  writeAddr+= sizeof(brightnessLevels);
+  EEPROM.put(writeAddr,currMtxBrightness);
+  writeAddr += sizeof(currentGameType);
+  EEPROM.put(writeAddr, currentGameType);
+  writeAddr += sizeof(gameType);
+  EEPROM.put(writeAddr, currentGameType);
 }
 
-void loadHighscoresAndLevel() {
-  short readAdress = adresses[highscoreStartAddr] + sizeof(highscore);
-  EEPROM.get(readAdress, hs1);
-  readAdress += sizeof(highscore);
-  EEPROM.get(readAdress, hs2);
-  readAdress += sizeof(highscore);
-  EEPROM.get(readAdress, hs3);
-  readAdress += sizeof(currentGameType);
-  EEPROM.get(readAdress, currentGameType);
+void loadHighscores() {
+  int readAddress = highscoreStartAddr + sizeof(highscore);
+  EEPROM.get(readAddress, hs1);
+  readAddress += sizeof(highscore);
+  EEPROM.get(readAddress, hs2);
+  readAddress += sizeof(highscore);
+  EEPROM.get(readAddress, hs3);
 }
 
-void saveHighscoresAndLevel() {
-  short writeAdress = adresses[highscoreStartAddr] + sizeof(highscore);
-  EEPROM.put(writeAdress, hs1);
-  writeAdress += sizeof(highscore);
-  EEPROM.put(writeAdress, hs2);
-  writeAdress += sizeof(highscore);
-  EEPROM.put(writeAdress, hs3);
-  writeAdress += sizeof(gameType);
-  EEPROM.put(writeAdress, currentGameType);
+void saveHighscores() {
+  int writeAddress = highscoreStartAddr + sizeof(highscore);
+  EEPROM.put(writeAddress, hs1);
+  writeAddress += sizeof(highscore);
+  EEPROM.put(writeAddress, hs2);
+  writeAddress += sizeof(highscore);
+  EEPROM.put(writeAddress, hs3);
 }
+
+void displayLoadedParameters() {
+  Serial.println("Loaded Parameters:");
+  
+  Serial.print("Sound On: ");
+  Serial.println(isSoundOn);
+
+  Serial.print("Current LCD Brightness: ");
+  Serial.println(static_cast<int>(currLcdBrightness));
+
+  Serial.print("Current Matrix Brightness: ");
+  Serial.println(static_cast<int>(currMtxBrightness));
+
+  Serial.print("Current Game Type: ");
+  Serial.println(static_cast<int>(currentGameType));
+}
+
+void displayLoadedHighscores() {
+  Serial.println("Loaded Highscores:");
+
+  Serial.print("Highscore 1: ");
+  Serial.print("Name: ");
+  Serial.print(hs1.name);
+  Serial.print(", Score: ");
+  Serial.println(hs1.scoreValue);
+
+  Serial.print("Highscore 2: ");
+  Serial.print("Name: ");
+  Serial.print(hs2.name);
+  Serial.print(", Score: ");
+  Serial.println(hs2.scoreValue);
+
+  Serial.print("Highscore 3: ");
+  Serial.print("Name: ");
+  Serial.print(hs3.name);
+  Serial.print(", Score: ");
+  Serial.println(hs3.scoreValue);
+}
+
 
 //HARDWARE CONTROL FUNCTIONS START HERE
 void getJoystickState() {
@@ -1061,6 +1094,7 @@ void autoBrightnessController() {
     if ((millis() - prevMillisRefresh) >= updateRate) {
       prevMillisRefresh = millis();
       sampledLightVal = map(analogRead(ambientLightSensor), 0, 1023, 0, 100);
+      Serial.println(sampledLightVal);
     }
     if (autoBrightnessLCD == true) {
       if (sampledLightVal < minThresholdValueLight) {
@@ -1093,12 +1127,21 @@ void autoBrightnessController() {
   }
 }
 
-void buzzerController(unsigned int frequency) {
+void buzzerController(unsigned int frequency, unsigned long duration) {
   if (isSoundOn == true) {
-    tone(buzzerPin, frequency, soundDuration);
+    tone(buzzerPin, frequency, duration);
   }
 }
 
 void executeResetHighscores() {
-  Serial.println("Placeholder");
+  strcpy(hs1.name,"");
+  hs1.scoreValue=0;
+  strcpy(hs2.name,"");
+  hs2.scoreValue=0;
+  strcpy(hs3.name,"");
+  hs3.scoreValue=0;
+  saveHighscores();
+  lcd.clear();
+  lcd.print("erased");
+  delay(500);
 }
