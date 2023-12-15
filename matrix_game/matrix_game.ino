@@ -50,6 +50,9 @@
 #define noOfTutorialPages 10
 #define aboutPage1 0
 #define aboutPage2 1
+#define moveSoundHz 1000
+#define moveSoundDuration 50
+#define resetSoundHz 2500
 
 byte upArrowChar[8] = {
   0b00000,
@@ -533,6 +536,7 @@ void handleMenuNavigation() {
 void navigateMenuUp() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
+    buzzerController(moveSoundHz,moveSoundDuration);
     if (currentState > 0) {
       currentState = static_cast<mainMenuStates>(currentState - 1);
     } else {
@@ -543,6 +547,7 @@ void navigateMenuUp() {
 
 void navigateMenuDown() {
   if (cmdExecuted == false) {
+    buzzerController(moveSoundHz,moveSoundDuration);
     cmdExecuted = true;
     currentState = static_cast<mainMenuStates>((currentState + 1) % maxAccesibleMenuStates);
   }
@@ -825,6 +830,7 @@ void handleSubmenuNavigation() {
 void navigateSubmenuUp() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
+    buzzerController(moveSoundHz, moveSoundDuration);
     if (currentSettingsSubmenu > 0) {
       currentSettingsSubmenu = static_cast<submenuStates>(currentSettingsSubmenu - 1);
     } else {
@@ -836,6 +842,7 @@ void navigateSubmenuUp() {
 void navigateSubmenuDown() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
+    buzzerController(moveSoundHz, moveSoundDuration);
     currentSettingsSubmenu = static_cast<submenuStates>((currentSettingsSubmenu + 1) % maxAccesibleSubmenuStates);
   }
 }
@@ -843,6 +850,7 @@ void navigateSubmenuDown() {
 void navigateBackToMainMenu() {
   if (cmdExecuted == false) {
     saveParameters();
+    buzzerController(moveSoundHz, moveSoundDuration);
     cmdExecuted = true;
     isInSubmenu = false;
     currentState = settings;
@@ -1192,5 +1200,6 @@ void executeResetHighscores() {
     strcpy(hsArr[i].name, "");
     hsArr[i].scoreValue = 0;
   }
+  buzzerController(resetSoundHz, moveSoundDuration);
   saveHighscores();
 }
