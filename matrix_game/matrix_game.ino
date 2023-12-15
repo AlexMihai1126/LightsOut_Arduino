@@ -34,7 +34,6 @@
 #define displayHighBrightnessValue 200
 #define displayUltraBrightnessValue 255
 #define noOfSymbols 36
-#define noOfSamples 10
 #define updateRate 3000
 #define minThresholdValueLight 5
 #define midThresholdValueLight 25
@@ -44,6 +43,13 @@
 #define noOfBrightnessLevels 5
 #define soundOnAddr 0
 #define highscoreStartAddr 100
+#define highscoreShowTime 500
+#define offsetIndex 1
+#define noOfHighscores 3
+#define noOfAboutPages 2
+#define noOfTutorialPages 10
+#define aboutPage1 0
+#define aboutPage2 1
 
 byte upArrowChar[8] = {
   0b00000,
@@ -86,6 +92,17 @@ byte logicalMatrix[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0 }
+};
+
+byte checkICO[matrixSize][matrixSize] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 1 },
+  { 0, 0, 0, 0, 0, 0, 1, 0 },
+  { 0, 0, 0, 0, 0, 1, 0, 0 },
+  { 1, 0, 0, 0, 1, 0, 0, 0 },
+  { 0, 1, 0, 1, 0, 0, 0, 0 },
+  { 0, 0, 1, 0, 0, 0, 0, 0 },
   { 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
@@ -226,7 +243,8 @@ submenuStates previousSubmenuState = inMainMenu;
 
 enum gameType {
   randomBoard,
-  freeDraw
+  freeDraw,
+  demoGame
 };
 
 gameType currentGameType = randomBoard;
@@ -268,7 +286,7 @@ bool leftMovementEnabled = true;
 bool upMovementEnabled = true;
 bool downMovementEnabled = true;
 bool cmdExecutedRedSw = false;
-bool settingStateChanged = false;
+bool joySwCmdExec = false;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -290,20 +308,22 @@ unsigned long startIntroTime = 0;
 unsigned long lastDebounceTimeJoySw = 0;
 unsigned long lastDebounceTimeRedSw = 0;
 unsigned long prevMillisRefresh = 0;
+unsigned long prevMillisForDisplays = 0;
 
-highscore hs1;
-highscore hs2;
-highscore hs3;
+highscore hsArr[noOfHighscores];
 highscore currPlayer;
+short hsIndex = 0;
+int menuPage = 0;
 
 const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
-//TODO REWRITE SAVE AND LOAD FUNCTIONS FOR THE NEW ENUM DATA TYPES BRIGHTNESS!!! debug auto brightness state and add delete confirmation message
+//debug auto brightness state
 void setup() {
   autoBrightnessLCD = false;
   autoBrightnessMtx = false;  //due to compiler optimizations it will not upload the auto brightness controller if one of these values is false during compile time so we start with true and then instantly disable them
+  Serial.begin(9600);
   lcd.begin(16, 2);
   lcd.clear();
   lcd.createChar(1, upArrowChar);
@@ -316,20 +336,15 @@ void setup() {
   pinMode(joystickY, INPUT);
   pinMode(ambientLightSensor, INPUT);
   pinMode(displayBacklight, OUTPUT);
-  displayBrightnessController(currLcdBrightness);
-  lcd.print("STARTING UP...");
   loadParameters();
-  displayLoadedParameters();
   loadHighscores();
-  displayLoadedHighscores();
+  displayBrightnessController(currLcdBrightness);
   matrix.shutdown(matrixId, false);
   matrixBrightnessController(currMtxBrightness);
   matrix.clearDisplay(matrixId);
-  randomSeed(analogRead(A5));
-  currentState = intro;  //switch to intro state after the setup runs
-  Serial.begin(9600);
-  buzzerController(startupFreqSound,soundDuration);
-  //clearLogicalMatrix();
+  randomSeed(analogRead(A5));  //initialize random number generator
+  currentState = intro;        //switch to intro state after the setup runs
+  buzzerController(startupFreqSound, soundDuration);
 }
 
 void loop() {
@@ -382,12 +397,14 @@ void handleMenu() {
 
 void handleIntro() {
   if (introHasAppeared == false) {
+    copyByteMatrix(checkICO, logicalMatrix);
     lcd.print("Welcome to");
     lcd.setCursor(0, 1);
     lcd.print("Lights OUT!");
     introHasAppeared = true;
+  }
+  if ((millis() - prevMillisForDisplays) >= introShowTime) {
     currentState = startGame;
-    delay(1000);  //only for test purposes will be removed in the project
     handleMenu();
   }
 }
@@ -410,8 +427,26 @@ void handleHighscores() {
     addArrowsToDisplay(enterArrow);
     copyByteMatrix(highscoreICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    hsIndex = 0;
   }
-  if (joySwState == HIGH && !isInSubmenu) {
+  if (hsIndex > noOfHighscores) {
+    currentState = startGame;
+    handleMenu();
+  } else {
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      lcd.clear();
+      lcd.print("Highscore #:");
+      lcd.print(hsIndex + offsetIndex);
+      addArrowsToDisplay(enterArrow);
+      lcd.setCursor(0, 1);
+      lcd.print("N:");
+      lcd.print(hsArr[hsIndex].name);
+      lcd.print(" ");
+      lcd.print("S:");
+      lcd.print(hsArr[hsIndex].scoreValue);
+      hsIndex += 1;
+    }
   }
 }
 
@@ -440,8 +475,34 @@ void handleAbout() {
     copyByteMatrix(atSymbolICO, logicalMatrix);
     addArrowsToDisplay(enterArrow);
     addArrowsToDisplay(upDownArr);
+    menuPage = 0;
   }
-  //on joystick press get info about creator
+  if (menuPage > noOfAboutPages) {
+    currentState = tutorial;
+    handleMenu();
+  }
+  if (joySwState == HIGH && joySwCmdExec == false) {
+    joySwCmdExec = true;
+    switch (menuPage) {
+      case aboutPage1:
+        lcd.clear();
+        lcd.print("Made by:");
+        lcd.setCursor(0, 1);
+        lcd.print("Alex Mihai");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case aboutPage2:
+        lcd.clear();
+        lcd.print("GitHub repo:");
+        lcd.setCursor(0, 1);
+        lcd.print("@AlexMihai1126");
+        addArrowsToDisplay(enterArrow);
+        break;
+      default:
+        break;
+    }
+    menuPage += 1;
+  }
 }
 
 void handleTutorial() {
@@ -496,7 +557,7 @@ void handleSettingsSubmenus() {
   }
   switch (currentSettingsSubmenu) {
     case nameInput:
-      handleNameInput();
+      handleNameInput();  //TODO
       break;
     case mtxBrightCtrl:
       handleMtxBrightCtrl();
@@ -563,7 +624,7 @@ void handleMtxBrightCtrl() {
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
     currMtxBrightness = static_cast<brightnessLevels>((currMtxBrightness + 1) % noOfBrightnessLevels);
     matrixBrightnessController(currMtxBrightness);
-    if(currMtxBrightness == autoB){
+    if (currMtxBrightness == autoB) {
       autoBrightnessMtx = true;
     } else {
       autoBrightnessMtx = false;
@@ -628,7 +689,7 @@ void handleLcdBrightCtrl() {
   }
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
     currLcdBrightness = static_cast<brightnessLevels>((currLcdBrightness + 1) % noOfBrightnessLevels);
-    if(currLcdBrightness == autoB){
+    if (currLcdBrightness == autoB) {
       autoBrightnessLCD = true;
     } else {
       autoBrightnessLCD = false;
@@ -701,8 +762,12 @@ void handleGameTypeSelect() {
     } else if (currentGameType == freeDraw) {
       lcd.print("Free drawing");
       lcd.setCursor(0, 1);
+    } else if (currentGameType == demoGame) {
+      lcd.print("Demo mode");
+      lcd.setCursor(0, 1);
     }
   }
+
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
     currentGameType = (currentGameType == freeDraw) ? randomBoard : freeDraw;
     if (currentGameType == randomBoard) {
@@ -777,6 +842,7 @@ void navigateSubmenuDown() {
 
 void navigateBackToMainMenu() {
   if (cmdExecuted == false) {
+    saveParameters();
     cmdExecuted = true;
     isInSubmenu = false;
     currentState = settings;
@@ -892,10 +958,10 @@ void clearLogicalMatrix() {
 void loadParameters() {
   int readAddr = soundOnAddr;
   isSoundOn = EEPROM.read(readAddr);
-  readAddr+= sizeof(brightnessLevels);
-  EEPROM.get(readAddr,currLcdBrightness);
-  readAddr+= sizeof(brightnessLevels);
-  EEPROM.get(readAddr,currMtxBrightness);
+  readAddr += sizeof(brightnessLevels);
+  EEPROM.get(readAddr, currLcdBrightness);
+  readAddr += sizeof(brightnessLevels);
+  EEPROM.get(readAddr, currMtxBrightness);
   readAddr += sizeof(currentGameType);
   EEPROM.get(readAddr, currentGameType);
 }
@@ -903,10 +969,10 @@ void loadParameters() {
 void saveParameters() {
   int writeAddr = soundOnAddr;
   EEPROM.update(writeAddr, isSoundOn);
-  writeAddr+= sizeof(brightnessLevels);
-  EEPROM.put(writeAddr,currLcdBrightness);
-  writeAddr+= sizeof(brightnessLevels);
-  EEPROM.put(writeAddr,currMtxBrightness);
+  writeAddr += sizeof(brightnessLevels);
+  EEPROM.put(writeAddr, currLcdBrightness);
+  writeAddr += sizeof(brightnessLevels);
+  EEPROM.put(writeAddr, currMtxBrightness);
   writeAddr += sizeof(currentGameType);
   EEPROM.put(writeAddr, currentGameType);
   writeAddr += sizeof(gameType);
@@ -915,59 +981,46 @@ void saveParameters() {
 
 void loadHighscores() {
   int readAddress = highscoreStartAddr + sizeof(highscore);
-  EEPROM.get(readAddress, hs1);
-  readAddress += sizeof(highscore);
-  EEPROM.get(readAddress, hs2);
-  readAddress += sizeof(highscore);
-  EEPROM.get(readAddress, hs3);
+  for (int i = 0; i < noOfHighscores; i++) {
+    EEPROM.get(readAddress, hsArr[i]);
+    readAddress += sizeof(highscore);
+  }
 }
 
 void saveHighscores() {
   int writeAddress = highscoreStartAddr + sizeof(highscore);
-  EEPROM.put(writeAddress, hs1);
-  writeAddress += sizeof(highscore);
-  EEPROM.put(writeAddress, hs2);
-  writeAddress += sizeof(highscore);
-  EEPROM.put(writeAddress, hs3);
+  for (int i = 0; i < noOfHighscores; i++) {
+    EEPROM.put(writeAddress, hsArr[i]);
+    writeAddress += sizeof(highscore);
+  }
 }
 
-void displayLoadedParameters() {
-  Serial.println("Loaded Parameters:");
-  
-  Serial.print("Sound On: ");
-  Serial.println(isSoundOn);
+// void displayLoadedParameters() {
+//   Serial.println("Loaded Parameters:");
 
-  Serial.print("Current LCD Brightness: ");
-  Serial.println(static_cast<int>(currLcdBrightness));
+//   Serial.print("Sound On: ");
+//   Serial.println(isSoundOn);
 
-  Serial.print("Current Matrix Brightness: ");
-  Serial.println(static_cast<int>(currMtxBrightness));
+//   Serial.print("Current LCD Brightness: ");
+//   Serial.println(static_cast<int>(currLcdBrightness));
 
-  Serial.print("Current Game Type: ");
-  Serial.println(static_cast<int>(currentGameType));
-}
+//   Serial.print("Current Matrix Brightness: ");
+//   Serial.println(static_cast<int>(currMtxBrightness));
 
-void displayLoadedHighscores() {
-  Serial.println("Loaded Highscores:");
+//   Serial.print("Current Game Type: ");
+//   Serial.println(static_cast<int>(currentGameType));
+// }
 
-  Serial.print("Highscore 1: ");
-  Serial.print("Name: ");
-  Serial.print(hs1.name);
-  Serial.print(", Score: ");
-  Serial.println(hs1.scoreValue);
-
-  Serial.print("Highscore 2: ");
-  Serial.print("Name: ");
-  Serial.print(hs2.name);
-  Serial.print(", Score: ");
-  Serial.println(hs2.scoreValue);
-
-  Serial.print("Highscore 3: ");
-  Serial.print("Name: ");
-  Serial.print(hs3.name);
-  Serial.print(", Score: ");
-  Serial.println(hs3.scoreValue);
-}
+// void displayLoadedHighscores() {
+//   Serial.println("Loaded Highscores:");
+//   for (int i = 0; i < noOfHighscores; i++) {
+//     Serial.print("Highscore: ");
+//     Serial.print("Name: ");
+//     Serial.print(hsArr[i].name);
+//     Serial.print(", Score: ");
+//     Serial.println(hsArr[i].scoreValue);
+//   }
+// }  //functions used for testing EEPROM R/W
 
 
 //HARDWARE CONTROL FUNCTIONS START HERE
@@ -1016,6 +1069,7 @@ void getJoySwitchState() {
         joySwState = HIGH;
       } else {
         joySwState = LOW;
+        joySwCmdExec = false;
       }
     }
   }
@@ -1134,14 +1188,9 @@ void buzzerController(unsigned int frequency, unsigned long duration) {
 }
 
 void executeResetHighscores() {
-  strcpy(hs1.name,"");
-  hs1.scoreValue=0;
-  strcpy(hs2.name,"");
-  hs2.scoreValue=0;
-  strcpy(hs3.name,"");
-  hs3.scoreValue=0;
+  for (int i = 0; i < noOfHighscores; i++) {
+    strcpy(hsArr[i].name, "");
+    hsArr[i].scoreValue = 0;
+  }
   saveHighscores();
-  lcd.clear();
-  lcd.print("erased");
-  delay(500);
 }
