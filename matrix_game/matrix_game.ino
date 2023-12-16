@@ -40,7 +40,7 @@
 #define highThresholdValueLight 40
 #define soundDuration 250
 #define startupFreqSound 500
-#define noOfBrightnessLevels 5
+#define noOfBrightnessLevels 4 //autoB state IS DISABLED PERMANENTLY due to a bug affecting the display controller function (otherwise there are 5 total states)
 #define soundOnAddr 0
 #define highscoreStartAddr 100
 #define highscoreShowTime 500
@@ -204,7 +204,7 @@ enum brightnessLevels {
   midBrightness,
   highBrightness,
   ultraBrightness,
-  autoB
+  autoB //disabled currently
 };
 
 brightnessLevels currLcdBrightness = midBrightness;
@@ -322,11 +322,7 @@ const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
-//debug auto brightness state
 void setup() {
-  autoBrightnessLCD = false;
-  autoBrightnessMtx = false;  //due to compiler optimizations it will not upload the auto brightness controller if one of these values is false during compile time so we start with true and then instantly disable them
-  Serial.begin(9600);
   lcd.begin(16, 2);
   lcd.clear();
   lcd.createChar(1, upArrowChar);
@@ -355,6 +351,7 @@ void loop() {
   getJoystickState();
   getJoySwitchState();
   getRedBtnState();
+  
   if (!isInGame) {
     if (isInSubmenu) {
       handleSubmenuNavigation();  // Handle submenu navigation based on debounced joystick state
@@ -364,7 +361,7 @@ void loop() {
       handleMenu();            // Handle the current main menu state
     }
   }
-  autoBrightnessController();
+  //autoBrightnessController(); - disabled
 }
 
 //MAIN MENU FUNCTIONS START HERE
@@ -1032,7 +1029,7 @@ void saveHighscores() {
 
 
 //HARDWARE CONTROL FUNCTIONS START HERE
-void getJoystickState() {
+void getJoystickState() { 
   xValue = analogRead(joystickX);
   yValue = analogRead(joystickY);
   if (joystickMoved == false) {
@@ -1106,21 +1103,20 @@ void getRedBtnState() {
 void displayBrightnessController(brightnessLevels targetBrightness) {
   switch (targetBrightness) {
     case lowBrightness:
-      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayLowBrightnessValue);
       break;
     case midBrightness:
-      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayMidBrightnessValue);
       break;
     case highBrightness:
-      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayHighBrightnessValue);
       break;
     case ultraBrightness:
-      autoBrightnessLCD = false;
       analogWrite(displayBacklight, displayUltraBrightnessValue);
       break;
+    // case autoB:
+    //   autoBrightnessLCD=true;
+    //   break;
     default:
       break;
   }
@@ -1129,65 +1125,64 @@ void displayBrightnessController(brightnessLevels targetBrightness) {
 void matrixBrightnessController(brightnessLevels targetBrightness) {
   switch (targetBrightness) {
     case lowBrightness:
-      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixLowBrightnessValue);
       break;
     case midBrightness:
-      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixMidBrightnessValue);
       break;
     case highBrightness:
-      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixHighBrightnessValue);
       break;
     case ultraBrightness:
-      autoBrightnessMtx = false;
       matrix.setIntensity(matrixId, matrixUltraBrightnessValue);
       break;
+    // case autoB:
+    //   autoBrightnessMtx = true;
+    //   break;
     default:
       break;
   }
 }
 
-void autoBrightnessController() {
-  if (autoBrightnessLCD == true || autoBrightnessMtx == true) {
-    //enabled only if at least one of the controls is set to automatic to save resources
-    short sampledLightVal = 0;
-    if ((millis() - prevMillisRefresh) >= updateRate) {
-      prevMillisRefresh = millis();
-      sampledLightVal = map(analogRead(ambientLightSensor), 0, 1023, 0, 100);
-      Serial.println(sampledLightVal);
-    }
-    if (autoBrightnessLCD == true) {
-      if (sampledLightVal < minThresholdValueLight) {
-        displayBrightnessController(lowBrightness);
-      }
-      if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
-        displayBrightnessController(midBrightness);
-      }
-      if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
-        displayBrightnessController(highBrightness);
-      }
-      if (sampledLightVal > highThresholdValueLight) {
-        displayBrightnessController(ultraBrightness);
-      }
-    }
-    if (autoBrightnessMtx == true) {
-      if (sampledLightVal < minThresholdValueLight) {
-        matrixBrightnessController(lowBrightness);
-      }
-      if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
-        matrixBrightnessController(midBrightness);
-      }
-      if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
-        matrixBrightnessController(highBrightness);
-      }
-      if (sampledLightVal > highThresholdValueLight) {
-        matrixBrightnessController(ultraBrightness);
-      }
-    }
-  }
-}
+// void autoBrightnessController() {
+//   if (autoBrightnessLCD == true || autoBrightnessMtx == true) {
+//     //enabled only if at least one of the controls is set to automatic to save resources
+//     short sampledLightVal = 0;
+//     if ((millis() - prevMillisRefresh) >= updateRate) {
+//       prevMillisRefresh = millis();
+//       sampledLightVal = map(analogRead(ambientLightSensor), 0, 1023, 0, 100);
+//       Serial.println(sampledLightVal);
+//     }
+//     if (autoBrightnessLCD == true) {
+//       if (sampledLightVal < minThresholdValueLight) {
+//         displayBrightnessController(lowBrightness);
+//       }
+//       if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
+//         displayBrightnessController(midBrightness);
+//       }
+//       if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
+//         displayBrightnessController(highBrightness);
+//       }
+//       if (sampledLightVal > highThresholdValueLight) {
+//         displayBrightnessController(ultraBrightness);
+//       }
+//     }
+//     if (autoBrightnessMtx == true) {
+//       if (sampledLightVal < minThresholdValueLight) {
+//         matrixBrightnessController(lowBrightness);
+//       }
+//       if (sampledLightVal > minThresholdValueLight && sampledLightVal < midThresholdValueLight) {
+//         matrixBrightnessController(midBrightness);
+//       }
+//       if (sampledLightVal > midThresholdValueLight && sampledLightVal < highThresholdValueLight) {
+//         matrixBrightnessController(highBrightness);
+//       }
+//       if (sampledLightVal > highThresholdValueLight) {
+//         matrixBrightnessController(ultraBrightness);
+//       }
+//     }
+//   }
+// }
 
 void buzzerController(unsigned int frequency, unsigned long duration) {
   if (isSoundOn == true) {
