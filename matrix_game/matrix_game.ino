@@ -18,7 +18,7 @@
 #define joystickSw A4
 #define ambientLightSensor A3
 #define matrixSize 8
-#define blinkInterval 250
+#define blinkInterval 125
 #define maxCharsName 8
 #define maxGameLevels 4
 #define maxAccesibleMenuStates 5
@@ -309,6 +309,10 @@ const short minThreshold = 480;
 const short maxThreshold = 550;
 int xValue = 0;
 int yValue = 0;
+short upNeighbor = 0;
+short downNeighbor = 0;
+short leftNeighbor = 0;
+short rightNeighbor = 0;
 
 const unsigned long debounceTime = 100;
 const unsigned long introShowTime = 2500;
@@ -586,9 +590,9 @@ void handleInGame() {
   lcd.setCursor(0, 1);
   lcd.print("Moves: " + String(movesCount));
   lcd.setCursor(13, 0);
-  lcd.print("X:" + String(mtxIndexX+offsetIndex));
+  lcd.print("X:" + String(mtxIndexX + offsetIndex));
   lcd.setCursor(13, 1);
-  lcd.print("Y:" + String(mtxIndexY+offsetIndex));
+  lcd.print("Y:" + String(mtxIndexY + offsetIndex));
   lcd.setCursor(0, 0);
   gameLogic();
 
@@ -601,7 +605,6 @@ void handleInGame() {
   }
 }
 
-
 void startGameFn() {
   isInGame = true;
   startTime = millis();
@@ -612,6 +615,9 @@ void startGameFn() {
   mtxIndexX = 0;
   mtxIndexY = 0;
   movesCount = 0;
+  if(currentGameType == randomBoard){
+    generateBoard();
+  }
 }
 
 void handleEndGame() {
@@ -649,7 +655,7 @@ void checkIndexesOutOfRange(short maxIndex) {
 //   Serial.println(mtxIndexY);
 // }
 
-void gameJoystickMove() {
+void gameJoystickMove(short maxIndexFn) {
   if (joyState == STATIC) {
     cmdExecuted = false;
   } else {
@@ -658,25 +664,25 @@ void gameJoystickMove() {
         case LEFT:
           cmdExecuted = true;
           mtxIndexX--;
-          checkIndexesOutOfRange(maxIndexFree);
+          checkIndexesOutOfRange(maxIndexFn);
           //printIndexes();
           break;
         case RIGHT:
           cmdExecuted = true;
           mtxIndexX++;
-          checkIndexesOutOfRange(maxIndexFree);
+          checkIndexesOutOfRange(maxIndexFn);
           //printIndexes();
           break;
         case UP:
           cmdExecuted = true;
           mtxIndexY--;
-          checkIndexesOutOfRange(maxIndexFree);
+          checkIndexesOutOfRange(maxIndexFn);
           //printIndexes();
           break;
         case DOWN:
           cmdExecuted = true;
           mtxIndexY++;
-          checkIndexesOutOfRange(maxIndexFree);
+          checkIndexesOutOfRange(maxIndexFn);
           //printIndexes();
           break;
         default:
@@ -687,8 +693,8 @@ void gameJoystickMove() {
 }
 
 void gameLogic() {
-  gameJoystickMove();
   if (currentGameType == freeDraw) {
+    gameJoystickMove(maxIndexFree);
     blinkCurrentPixel();
     if (joySwState == HIGH && joySwCmdExec == false) {
       joySwCmdExec = true;
@@ -698,7 +704,12 @@ void gameLogic() {
   }
 
   if (currentGameType == randomBoard) {
-    //game logic for random board
+    gameJoystickMove(maxIndexBoard);
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      toggleNeighbors(mtxIndexY,mtxIndexX);
+    }
   }
 
   if (currentGameType == demoGame) {
@@ -706,13 +717,41 @@ void gameLogic() {
   }
 }
 
+void generateBoard(){
+  //todo implement generator, counter for checking how many on lights there are
+}
+
+void toggleNeighbors(short i, short j) {
+  upNeighbor = i - 1;
+  downNeighbor = i + 1;
+  leftNeighbor = j - 1;
+  rightNeighbor = j + 1;
+  logicalMatrix[i][j] = !logicalMatrix[i][j];
+  if (upNeighbor >= 0 && upNeighbor < maxIndexBoard) {
+    logicalMatrix[upNeighbor][j] = !logicalMatrix[upNeighbor][j];
+  }
+
+  if (downNeighbor >= 0 && downNeighbor < maxIndexBoard) {
+    logicalMatrix[downNeighbor][j] = !logicalMatrix[downNeighbor][j];
+  }
+
+  if (leftNeighbor >= 0 && leftNeighbor < maxIndexBoard) {
+    logicalMatrix[i][leftNeighbor] = !logicalMatrix[i][leftNeighbor];
+  }
+
+  if (rightNeighbor >= 0 && rightNeighbor < maxIndexBoard) {
+    logicalMatrix[i][rightNeighbor] = !logicalMatrix[i][rightNeighbor];
+  }
+}
+
+
 void blinkCurrentPixel() {
   byte ledState = logicalMatrix[mtxIndexX][mtxIndexY];
   if (!ledState && millis() - prevMillisBlink >= blinkInterval) {
     prevMillisBlink = millis();
     ledState = !ledState;
     matrix.setLed(matrixId, mtxIndexY, mtxIndexX, ledState);
-    isMtxEnabled = !isMtxEnabled;
+    //isMtxEnabled = !isMtxEnabled;
   }
 }
 
