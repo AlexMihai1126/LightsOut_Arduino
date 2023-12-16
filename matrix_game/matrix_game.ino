@@ -40,7 +40,7 @@
 #define highThresholdValueLight 40
 #define soundDuration 250
 #define startupFreqSound 500
-#define noOfBrightnessLevels 4 //autoB state IS DISABLED PERMANENTLY due to a bug affecting the display controller function (otherwise there are 5 total states)
+#define noOfBrightnessLevels 4  //autoB state IS DISABLED PERMANENTLY due to a bug affecting the display controller function (otherwise there are 5 total states)
 #define soundOnAddr 0
 #define highscoreStartAddr 100
 #define highscoreShowTime 500
@@ -53,6 +53,10 @@
 #define moveSoundHz 1000
 #define moveSoundDuration 50
 #define resetSoundHz 2500
+#define msInSec 1000
+#define secInMin 60
+#define maxIndexFree 8
+#define maxIndexBoard 5
 
 byte upArrowChar[8] = {
   0b00000,
@@ -204,7 +208,7 @@ enum brightnessLevels {
   midBrightness,
   highBrightness,
   ultraBrightness,
-  autoB //disabled currently
+  autoB  //disabled currently
 };
 
 brightnessLevels currLcdBrightness = midBrightness;
@@ -290,6 +294,8 @@ bool upMovementEnabled = true;
 bool downMovementEnabled = true;
 bool cmdExecutedRedSw = false;
 bool joySwCmdExec = false;
+bool endGameLCDPrinted = false;
+bool isMtxEnabled = true;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -312,17 +318,23 @@ unsigned long lastDebounceTimeJoySw = 0;
 unsigned long lastDebounceTimeRedSw = 0;
 unsigned long prevMillisRefresh = 0;
 unsigned long prevMillisForDisplays = 0;
+unsigned long startTime = 0;
+unsigned long prevMillisBlink = 0;
 
 highscore hsArr[noOfHighscores];
 highscore currPlayer;
 short hsIndex = 0;
 int menuPage = 0;
+short mtxIndexX = 0;
+short mtxIndexY = 0;
+int movesCount = 0;
 
 const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
 void setup() {
+  Serial.begin(9600);
   lcd.begin(16, 2);
   lcd.clear();
   lcd.createChar(1, upArrowChar);
@@ -351,14 +363,19 @@ void loop() {
   getJoystickState();
   getJoySwitchState();
   getRedBtnState();
-  
-  if (!isInGame) {
+  if ((currInternalMenuState == inGame || currInternalMenuState == endGame) && currentState == inSubmenu) {
+    if (isInGame == true && currInternalMenuState == inGame) {
+      handleInGame();  //pressing red button again here ends the game
+    } else if (isInGame == false && currInternalMenuState == endGame) {
+      handleEndGame();  //pressing red button again resets to main  menu
+    }
+  } else {
     if (isInSubmenu) {
-      handleSubmenuNavigation();  // Handle submenu navigation based on debounced joystick state
-      handleSettingsSubmenus();   // Handle the current submenu state
+      handleSubmenuNavigation();
+      handleSettingsSubmenus();
     } else {
-      handleMenuNavigation();  // Handle main menu navigation based on debounced joystick state
-      handleMenu();            // Handle the current main menu state
+      handleMenuNavigation();
+      handleMenu();
     }
   }
   //autoBrightnessController(); - disabled
@@ -416,6 +433,11 @@ void handleStartGame() {
     lcd.print("Press button!");
     copyByteMatrix(smileyICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+  }
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    startGameFn();
   }
 }
 
@@ -501,7 +523,7 @@ void handleAbout() {
       default:
         break;
     }
-    menuPage += 1;
+    menuPage += offsetIndex;
   }
 }
 
@@ -533,7 +555,7 @@ void handleMenuNavigation() {
 void navigateMenuUp() {
   if (cmdExecuted == false) {
     cmdExecuted = true;
-    buzzerController(moveSoundHz,moveSoundDuration);
+    buzzerController(moveSoundHz, moveSoundDuration);
     if (currentState > 0) {
       currentState = static_cast<mainMenuStates>(currentState - 1);
     } else {
@@ -544,12 +566,155 @@ void navigateMenuUp() {
 
 void navigateMenuDown() {
   if (cmdExecuted == false) {
-    buzzerController(moveSoundHz,moveSoundDuration);
+    buzzerController(moveSoundHz, moveSoundDuration);
     cmdExecuted = true;
     currentState = static_cast<mainMenuStates>((currentState + 1) % maxAccesibleMenuStates);
   }
 }
 
+//in game and end game stuff
+void handleInGame() {
+  unsigned long elapsedTime = millis() - startTime;
+  unsigned long elapsedSeconds = elapsedTime / msInSec;
+  unsigned long elapsedMinutes = elapsedSeconds / secInMin;
+  elapsedSeconds %= secInMin;
+
+  String formattedMinutes = String(elapsedMinutes);
+  String formattedSeconds = (elapsedSeconds < 10) ? "0" + String(elapsedSeconds) : String(elapsedSeconds);
+
+  lcd.print("Time: " + formattedMinutes + "m " + formattedSeconds + "s");
+  lcd.setCursor(0, 1);
+  lcd.print("Moves: " + String(movesCount));
+  lcd.setCursor(13, 0);
+  lcd.print("X:" + String(mtxIndexX+offsetIndex));
+  lcd.setCursor(13, 1);
+  lcd.print("Y:" + String(mtxIndexY+offsetIndex));
+  lcd.setCursor(0, 0);
+  gameLogic();
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    currInternalMenuState = endGame;
+    isInGame = false;
+    isMtxEnabled = true;
+    lcd.clear();
+  }
+}
+
+
+void startGameFn() {
+  isInGame = true;
+  startTime = millis();
+  currentState = inSubmenu;
+  currInternalMenuState = inGame;
+  lcd.clear();
+  clearLogicalMatrix();
+  mtxIndexX = 0;
+  mtxIndexY = 0;
+  movesCount = 0;
+}
+
+void handleEndGame() {
+  if (endGameLCDPrinted == false) {
+    endGameLCDPrinted = true;
+    lcd.clear();
+    lcd.print("Ending game.");
+  }
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    currentState = startGame;
+    currInternalMenuState = inOtherMenu;
+    endGameLCDPrinted = false;
+  }
+}
+
+void checkIndexesOutOfRange(short maxIndex) {
+  if (mtxIndexX > maxIndex - offsetIndex) {
+    mtxIndexX = 0;
+  } else if (mtxIndexX < 0) {
+    mtxIndexX = maxIndex - offsetIndex;
+  }
+  if (mtxIndexY > maxIndex - offsetIndex) {
+    mtxIndexY = 0;
+  } else if (mtxIndexY < 0) {
+    mtxIndexY = maxIndex - offsetIndex;
+  }
+}
+
+// void printIndexes() {
+//   Serial.print("X: ");
+//   Serial.println(mtxIndexX);
+//   Serial.print("Y: ");
+//   Serial.println(mtxIndexY);
+// }
+
+void gameJoystickMove() {
+  if (joyState == STATIC) {
+    cmdExecuted = false;
+  } else {
+    if (cmdExecuted == false) {
+      switch (joyState) {
+        case LEFT:
+          cmdExecuted = true;
+          mtxIndexX--;
+          checkIndexesOutOfRange(maxIndexFree);
+          //printIndexes();
+          break;
+        case RIGHT:
+          cmdExecuted = true;
+          mtxIndexX++;
+          checkIndexesOutOfRange(maxIndexFree);
+          //printIndexes();
+          break;
+        case UP:
+          cmdExecuted = true;
+          mtxIndexY--;
+          checkIndexesOutOfRange(maxIndexFree);
+          //printIndexes();
+          break;
+        case DOWN:
+          cmdExecuted = true;
+          mtxIndexY++;
+          checkIndexesOutOfRange(maxIndexFree);
+          //printIndexes();
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+void gameLogic() {
+  gameJoystickMove();
+  if (currentGameType == freeDraw) {
+    blinkCurrentPixel();
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      logicalMatrix[mtxIndexY][mtxIndexX] = !logicalMatrix[mtxIndexY][mtxIndexX];
+    }
+  }
+
+  if (currentGameType == randomBoard) {
+    //game logic for random board
+  }
+
+  if (currentGameType == demoGame) {
+    //demo mode for quick presentation
+  }
+}
+
+void blinkCurrentPixel() {
+  byte ledState = logicalMatrix[mtxIndexX][mtxIndexY];
+  if (!ledState && millis() - prevMillisBlink >= blinkInterval) {
+    prevMillisBlink = millis();
+    ledState = !ledState;
+    matrix.setLed(matrixId, mtxIndexY, mtxIndexX, ledState);
+    isMtxEnabled = !isMtxEnabled;
+  }
+}
 
 //SUBMENU FUNCTIONS START HERE
 void handleSettingsSubmenus() {
@@ -806,13 +971,11 @@ void handleSubmenuNavigation() {
       if (upMovementEnabled) {
         navigateSubmenuUp();
       }
-
       break;
     case DOWN:
       if (downMovementEnabled) {
         navigateSubmenuDown();
       }
-
       break;
     case LEFT:
       if (leftMovementEnabled) {
@@ -909,9 +1072,11 @@ void addArrowsToDisplay(arrowTypes type) {
 }
 
 void displayMatrix() {
-  for (int row = 0; row < matrixSize; row++) {
-    for (int col = 0; col < matrixSize; col++) {
-      matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
+  if (isMtxEnabled == true) {
+    for (int row = 0; row < matrixSize; row++) {
+      for (int col = 0; col < matrixSize; col++) {
+        matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
+      }
     }
   }
 }
@@ -1029,7 +1194,7 @@ void saveHighscores() {
 
 
 //HARDWARE CONTROL FUNCTIONS START HERE
-void getJoystickState() { 
+void getJoystickState() {
   xValue = analogRead(joystickX);
   yValue = analogRead(joystickY);
   if (joystickMoved == false) {
@@ -1151,7 +1316,6 @@ void matrixBrightnessController(brightnessLevels targetBrightness) {
 //     if ((millis() - prevMillisRefresh) >= updateRate) {
 //       prevMillisRefresh = millis();
 //       sampledLightVal = map(analogRead(ambientLightSensor), 0, 1023, 0, 100);
-//       Serial.println(sampledLightVal);
 //     }
 //     if (autoBrightnessLCD == true) {
 //       if (sampledLightVal < minThresholdValueLight) {
