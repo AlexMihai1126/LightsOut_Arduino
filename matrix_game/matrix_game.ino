@@ -332,6 +332,7 @@ int menuPage = 0;
 short mtxIndexX = 0;
 short mtxIndexY = 0;
 int movesCount = 0;
+short noOfOnLights = 0;
 
 const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
@@ -361,7 +362,7 @@ void setup() {
   currentState = intro;        //switch to intro state after the setup runs
   buzzerController(startupFreqSound, soundDuration);
 }
-
+//todo impement demo board switcher, highscore update and how to play
 void loop() {
   displayMatrix();
   getJoystickState();
@@ -615,8 +616,12 @@ void startGameFn() {
   mtxIndexX = 0;
   mtxIndexY = 0;
   movesCount = 0;
-  if(currentGameType == randomBoard){
+  noOfOnLights = 0;
+  if (currentGameType == randomBoard) {
     generateBoard();
+  }
+  if (currentGameType == demoGame) {
+    generateDemoBoard();
   }
 }
 
@@ -624,7 +629,9 @@ void handleEndGame() {
   if (endGameLCDPrinted == false) {
     endGameLCDPrinted = true;
     lcd.clear();
-    lcd.print("Ending game.");
+    lcd.print("You won!");
+    lcd.setCursor(0, 1);
+    lcd.print("In " + String(movesCount) + " moves.");
   }
 
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
@@ -704,21 +711,51 @@ void gameLogic() {
   }
 
   if (currentGameType == randomBoard) {
+    checkForWin();
     gameJoystickMove(maxIndexBoard);
     if (joySwState == HIGH && joySwCmdExec == false) {
       joySwCmdExec = true;
       movesCount++;
-      toggleNeighbors(mtxIndexY,mtxIndexX);
+      toggleNeighbors(mtxIndexY, mtxIndexX);
     }
   }
 
   if (currentGameType == demoGame) {
-    //demo mode for quick presentation
+    checkForWin();
+    gameJoystickMove(maxIndexBoard);
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      toggleNeighbors(mtxIndexY, mtxIndexX);
+    }
   }
 }
 
-void generateBoard(){
-  //todo implement generator, counter for checking how many on lights there are
+void generateBoard() {
+  int noOfLights = random(maxIndexBoard * maxIndexBoard * 0.2, maxIndexBoard * maxIndexBoard * 0.8);
+  for (int light = 0; light < noOfLights; light++) {
+    int i = random(maxIndexBoard);
+    int j = random(maxIndexBoard);
+    logicalMatrix[j][i] = HIGH;
+  }
+  for (int i = 0; i < maxIndexBoard; i++) {
+    for (int j = 0; j < maxIndexBoard; j++) {
+      if (logicalMatrix[j][i] == HIGH) {
+        noOfOnLights++;
+      }
+    }
+  }
+  //Serial.print("On lights at start: ");
+  //Serial.println(noOfOnLights);
+}
+
+void generateDemoBoard(){
+  logicalMatrix[1][1] = HIGH;
+  logicalMatrix[2][0] = HIGH;
+  logicalMatrix[2][1] = HIGH;
+  logicalMatrix[2][2] = HIGH;
+  logicalMatrix[3][1] = HIGH;
+  noOfOnLights = 5;
 }
 
 void toggleNeighbors(short i, short j) {
@@ -727,23 +764,58 @@ void toggleNeighbors(short i, short j) {
   leftNeighbor = j - 1;
   rightNeighbor = j + 1;
   logicalMatrix[i][j] = !logicalMatrix[i][j];
+  if (logicalMatrix[i][j] == HIGH) {
+    noOfOnLights++;
+  } else {
+    noOfOnLights--;
+  }
   if (upNeighbor >= 0 && upNeighbor < maxIndexBoard) {
     logicalMatrix[upNeighbor][j] = !logicalMatrix[upNeighbor][j];
+    if (logicalMatrix[upNeighbor][j] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
   }
 
   if (downNeighbor >= 0 && downNeighbor < maxIndexBoard) {
     logicalMatrix[downNeighbor][j] = !logicalMatrix[downNeighbor][j];
+    if (logicalMatrix[downNeighbor][j] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
   }
 
   if (leftNeighbor >= 0 && leftNeighbor < maxIndexBoard) {
     logicalMatrix[i][leftNeighbor] = !logicalMatrix[i][leftNeighbor];
+    if (logicalMatrix[i][leftNeighbor] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
   }
 
   if (rightNeighbor >= 0 && rightNeighbor < maxIndexBoard) {
     logicalMatrix[i][rightNeighbor] = !logicalMatrix[i][rightNeighbor];
+    if (logicalMatrix[i][rightNeighbor] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
   }
+  //Serial.print("Current on lights: ");
+  //Serial.println(noOfOnLights);
 }
 
+void checkForWin(){
+  if(noOfOnLights == 0){
+    currInternalMenuState = endGame;
+    isInGame = false;
+    isMtxEnabled = true;
+    lcd.clear();
+  }
+}
 
 void blinkCurrentPixel() {
   byte ledState = logicalMatrix[mtxIndexX][mtxIndexY];
