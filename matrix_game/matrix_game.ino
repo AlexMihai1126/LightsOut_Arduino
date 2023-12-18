@@ -1,3 +1,5 @@
+//KNOWN BUGS: LEDs DO NOT BLINK WHEN SELECTED!
+
 #include <LiquidCrystal.h>
 #include <LedControl.h>
 #include <EEPROM.h>
@@ -19,7 +21,8 @@
 #define ambientLightSensor A3
 #define matrixSize 8
 #define blinkInterval 250
-#define maxCharsName 8
+#define maxCharsName 4
+#define charStrToIndexes 2
 #define maxGameLevels 4
 #define maxAccesibleMenuStates 5
 #define maxAccesibleSubmenuStates 6
@@ -47,7 +50,7 @@
 #define offsetIndex 1
 #define noOfHighscores 3
 #define noOfAboutPages 2
-#define noOfTutorialPages 10
+#define noOfTutorialPages 11
 #define aboutPage1 0
 #define aboutPage2 1
 #define moveSoundHz 1000
@@ -56,8 +59,28 @@
 #define btnPressSoundHz 500
 #define msInSec 1000
 #define secInMin 60
+#define minPercentOfLitPixels 0.2
+#define maxPercentOfLitPixels 0.8
 #define maxIndexFree 8
 #define maxIndexBoard 5
+#define tutorialPage1 0
+#define tutorialPage2 1
+#define tutorialPage3 2
+#define tutorialPage4 3
+#define tutorialPage5 4
+#define tutorialPage6 5
+#define tutorialPage7 6
+#define tutorialPage8 7
+#define tutorialPage9 8
+#define tutorialPage10 9
+#define tutorialPage11 10
+#define gameTypes 3
+#define noOfSecForFormat 10
+#define debounceTime 100
+#define introShowTime 2500
+#define minThreshold 480
+#define maxThreshold 550
+#define defaultName "AAA"
 
 byte upArrowChar[8] = {
   0b00000,
@@ -103,15 +126,15 @@ byte logicalMatrix[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
-byte checkICO[matrixSize][matrixSize] = {
+byte heartICO[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 1 },
-  { 0, 0, 0, 0, 0, 0, 1, 0 },
-  { 0, 0, 0, 0, 0, 1, 0, 0 },
-  { 1, 0, 0, 0, 1, 0, 0, 0 },
-  { 0, 1, 0, 1, 0, 0, 0, 0 },
-  { 0, 0, 1, 0, 0, 0, 0, 0 },
-  { 0, 0, 0, 0, 0, 0, 0, 0 }
+  { 0, 0, 1, 0, 0, 0, 1, 0 },
+  { 0, 1, 1, 1, 0, 1, 1, 1 },
+  { 0, 1, 1, 1, 1, 1, 1, 1 },
+  { 0, 1, 1, 1, 1, 1, 1, 1 },
+  { 0, 0, 1, 1, 1, 1, 1, 0 },
+  { 0, 0, 0, 1, 1, 1, 0, 0 },
+  { 0, 0, 0, 0, 1, 0, 0, 0 }
 };
 
 byte deleteICO[matrixSize][matrixSize] = {
@@ -204,18 +227,6 @@ byte highscoreICO[matrixSize][matrixSize] = {
   { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
-const uint8_t IMAGES[][8] = {
-  { 0b00000000,
-    0b00100010,
-    0b01110111,
-    0b01111111,
-    0b01111111,
-    0b00111110,
-    0b00011100,
-    0b00001000 }
-};
-
-
 enum brightnessLevels {
   lowBrightness,
   midBrightness,
@@ -255,7 +266,8 @@ enum submenuStates {
   soundCtrl,
   gameTypeSelect,
   resetHighscores,
-  inMainMenu
+  inMainMenu,
+  inNameEditor
 };
 
 submenuStates currentSettingsSubmenu = inMainMenu;
@@ -290,12 +302,12 @@ enum arrowTypes {
 
 struct highscore {
   char name[maxCharsName] = "";
-  int scoreValue = 0;
+  short scoreValue = 9999;  //we start with a high value as my game the highscore is the smallest number of moves
 };
 
 bool isSoundOn = true;  //defaults
-bool autoBrightnessLCD = true;
-bool autoBrightnessMtx = true;
+//bool autoBrightnessLCD = true;
+//bool autoBrightnessMtx = true;
 
 bool introHasAppeared = false;
 bool isInGame = false;
@@ -308,7 +320,9 @@ bool downMovementEnabled = true;
 bool cmdExecutedRedSw = false;
 bool joySwCmdExec = false;
 bool endGameLCDPrinted = false;
-bool isMtxEnabled = true;
+bool endComesFromWin = false;
+bool isInNameEditor = false;
+bool nameEditorInitialized = false;
 
 byte joySwReading = LOW;
 byte joySwState = LOW;
@@ -318,41 +332,39 @@ byte redSwReading = LOW;
 byte redSwState = LOW;
 byte redSwStateLastReading = LOW;
 
-const short minThreshold = 480;
-const short maxThreshold = 550;
-int xValue = 0;
-int yValue = 0;
+short xValue = 0;
+short yValue = 0;
 short upNeighbor = 0;
 short downNeighbor = 0;
 short leftNeighbor = 0;
 short rightNeighbor = 0;
 
-const unsigned long debounceTime = 100;
-const unsigned long introShowTime = 2500;
 
 unsigned long startIntroTime = 0;
 unsigned long lastDebounceTimeJoySw = 0;
 unsigned long lastDebounceTimeRedSw = 0;
-unsigned long prevMillisRefresh = 0;
+//unsigned long prevMillisRefresh = 0;
 unsigned long prevMillisForDisplays = 0;
 unsigned long startTime = 0;
 unsigned long prevMillisBlink = 0;
 
 highscore hsArr[noOfHighscores];
 highscore currPlayer;
+
 short hsIndex = 0;
-int menuPage = 0;
+short menuPage = 0;
 short mtxIndexX = 0;
 short mtxIndexY = 0;
-int movesCount = 0;
+short movesCount = 0;
 short noOfOnLights = 0;
+short currSymbol = 0;
+short charIndex = 0;
 
 const char symbols[noOfSymbols] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
 LiquidCrystal lcd(displayRS, displayEN, displayD4, displayD5, displayD6, displayD7);
 LedControl matrix = LedControl(matrixDIN, matrixCLK, matrixCS, noOfMatrix);
 void setup() {
-  Serial.begin(9600);
   lcd.begin(16, 2);
   lcd.clear();
   lcd.createChar(1, upArrowChar);
@@ -374,8 +386,9 @@ void setup() {
   randomSeed(analogRead(A5));  //initialize random number generator
   currentState = intro;        //switch to intro state after the setup runs
   buzzerController(startupFreqSound, soundDuration);
+  strcpy(currPlayer.name, defaultName);
 }
-//todo impement demo board switcher, highscore update and how to play, remove magic numbers from the board generator
+
 void loop() {
   displayMatrix();
   getJoystickState();
@@ -388,9 +401,14 @@ void loop() {
       handleEndGame();  //pressing red button again resets to main  menu
     }
   } else {
-    if (isInSubmenu) {
-      handleSubmenuNavigation();
-      handleSettingsSubmenus();
+    if (isInSubmenu || currentSettingsSubmenu == inNameEditor) {
+      if (isInNameEditor && currentSettingsSubmenu == inNameEditor) {
+        nameEditor();
+      } else {
+        handleSubmenuNavigation();
+        handleSettingsSubmenus();
+      }
+
     } else {
       handleMenuNavigation();
       handleMenu();
@@ -432,7 +450,7 @@ void handleMenu() {
 
 void handleIntro() {
   if (introHasAppeared == false) {
-    copyByteMatrix(checkICO, logicalMatrix);
+    copyByteMatrix(heartICO, logicalMatrix);
     lcd.print("Welcome to");
     lcd.setCursor(0, 1);
     lcd.print("Lights OUT!");
@@ -507,6 +525,7 @@ void handleSettings() {
     handleSettingsSubmenus();
   }
 }
+
 void handleAbout() {
   if (currentState != previousState) {
     lcd.print("About the game:");
@@ -541,7 +560,7 @@ void handleAbout() {
       default:
         break;
     }
-    menuPage += offsetIndex;
+    menuPage++;
   }
 }
 
@@ -553,8 +572,97 @@ void handleTutorial() {
     addArrowsToDisplay(enterArrow);
     copyByteMatrix(helpICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
+    menuPage = 0;
   }
-  //scrollable menu with instructions
+  if (menuPage > noOfTutorialPages) {
+    currentState = startGame;
+    handleMenu();
+  }
+  if (joySwState == HIGH && joySwCmdExec == false) {
+    joySwCmdExec = true;
+    switch (menuPage) {
+      case tutorialPage1:
+        lcd.clear();
+        lcd.print("RANDOM BOARD:");
+        lcd.setCursor(0, 1);
+        lcd.print("Your goal is");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage2:
+        lcd.clear();
+        lcd.print("to turn off all");
+        lcd.setCursor(0, 1);
+        lcd.print("LEDs on matrix");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage3:
+        lcd.clear();
+        lcd.print("in the smallest");
+        lcd.setCursor(0, 1);
+        lcd.print("no. of moves");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage4:
+        lcd.clear();
+        lcd.print("You move with");
+        lcd.setCursor(0, 1);
+        lcd.print("the joystick");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage5:
+        lcd.clear();
+        lcd.print("On pressing it");
+        lcd.setCursor(0, 1);
+        lcd.print("You toggle the");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage6:
+        lcd.clear();
+        lcd.print("current pixel");
+        lcd.setCursor(0, 1);
+        lcd.print("and its");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage7:
+        lcd.clear();
+        lcd.print("neighbors.");
+        lcd.setCursor(0, 1);
+        lcd.print("FREE DRAW:");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage8:
+        lcd.clear();
+        lcd.print("The matrix is a");
+        lcd.setCursor(0, 1);
+        lcd.print("drawing canvas.");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage9:
+        lcd.clear();
+        lcd.print("Use the stick");
+        lcd.setCursor(0, 1);
+        lcd.print("to move around.");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage10:
+        lcd.clear();
+        lcd.print("Clicking it will");
+        lcd.setCursor(0, 1);
+        lcd.print("Toggle the");
+        addArrowsToDisplay(enterArrow);
+        break;
+      case tutorialPage11:
+        lcd.clear();
+        lcd.print("current pixel.");
+        lcd.setCursor(0, 1);
+        lcd.print("Have fun!");
+        addArrowsToDisplay(enterArrow);
+        break;
+      default:
+        break;
+    }
+    menuPage++;
+  }
 }
 
 void handleMenuNavigation() {
@@ -590,264 +698,6 @@ void navigateMenuDown() {
   }
 }
 
-//in game and end game stuff
-void handleInGame() {
-  unsigned long elapsedTime = millis() - startTime;
-  unsigned long elapsedSeconds = elapsedTime / msInSec;
-  unsigned long elapsedMinutes = elapsedSeconds / secInMin;
-  elapsedSeconds %= secInMin;
-
-  String formattedMinutes = String(elapsedMinutes);
-  String formattedSeconds = (elapsedSeconds < 10) ? "0" + String(elapsedSeconds) : String(elapsedSeconds);
-
-  lcd.print("Time: " + formattedMinutes + "m " + formattedSeconds + "s");
-  lcd.setCursor(0, 1);
-  lcd.print("Moves: " + String(movesCount));
-  lcd.setCursor(13, 0);
-  lcd.print("X:" + String(mtxIndexX + offsetIndex));
-  lcd.setCursor(13, 1);
-  lcd.print("Y:" + String(mtxIndexY + offsetIndex));
-  lcd.setCursor(0, 0);
-  gameLogic();
-
-  if (redSwState == HIGH && cmdExecutedRedSw == false) {
-    cmdExecutedRedSw = true;
-    currInternalMenuState = endGame;
-    isInGame = false;
-    isMtxEnabled = true;
-    buzzerController(btnPressSoundHz, moveSoundDuration);
-    lcd.clear();
-  }
-}
-
-void startGameFn() {
-  isInGame = true;
-  startTime = millis();
-  currentState = inSubmenu;
-  currInternalMenuState = inGame;
-  lcd.clear();
-  clearLogicalMatrix();
-  mtxIndexX = 0;
-  mtxIndexY = 0;
-  movesCount = 0;
-  noOfOnLights = 0;
-  if (currentGameType == randomBoard) {
-    generateBoard();
-  }
-  if (currentGameType == demoGame) {
-    generateDemoBoard();
-  }
-}
-
-void handleEndGame() {
-  if (endGameLCDPrinted == false) {
-    endGameLCDPrinted = true;
-    lcd.clear();
-    lcd.print("You won!");
-    lcd.setCursor(0, 1);
-    lcd.print("In " + String(movesCount) + " moves.");
-  }
-
-  if (redSwState == HIGH && cmdExecutedRedSw == false) {
-    buzzerController(btnPressSoundHz, moveSoundDuration);
-    cmdExecutedRedSw = true;
-    currentState = startGame;
-    currInternalMenuState = inOtherMenu;
-    endGameLCDPrinted = false;
-  }
-}
-
-void checkIndexesOutOfRange(short maxIndex) {
-  if (mtxIndexX > maxIndex - offsetIndex) {
-    mtxIndexX = 0;
-  } else if (mtxIndexX < 0) {
-    mtxIndexX = maxIndex - offsetIndex;
-  }
-  if (mtxIndexY > maxIndex - offsetIndex) {
-    mtxIndexY = 0;
-  } else if (mtxIndexY < 0) {
-    mtxIndexY = maxIndex - offsetIndex;
-  }
-}
-
-// void printIndexes() {
-//   Serial.print("X: ");
-//   Serial.println(mtxIndexX);
-//   Serial.print("Y: ");
-//   Serial.println(mtxIndexY);
-// }
-
-void gameJoystickMove(short maxIndexFn) {
-  if (joyState == STATIC) {
-    cmdExecuted = false;
-  } else {
-    if (cmdExecuted == false) {
-      switch (joyState) {
-        case LEFT:
-          cmdExecuted = true;
-          mtxIndexX--;
-          checkIndexesOutOfRange(maxIndexFn);
-          buzzerController(moveSoundHz, moveSoundDuration);
-          //printIndexes();
-          break;
-        case RIGHT:
-          cmdExecuted = true;
-          mtxIndexX++;
-          checkIndexesOutOfRange(maxIndexFn);
-          buzzerController(moveSoundHz, moveSoundDuration);
-          //printIndexes();
-          break;
-        case UP:
-          cmdExecuted = true;
-          mtxIndexY--;
-          checkIndexesOutOfRange(maxIndexFn);
-          buzzerController(moveSoundHz, moveSoundDuration);
-          //printIndexes();
-          break;
-        case DOWN:
-          cmdExecuted = true;
-          mtxIndexY++;
-          checkIndexesOutOfRange(maxIndexFn);
-          buzzerController(moveSoundHz, moveSoundDuration);
-          //printIndexes();
-          break;
-        default:
-          break;
-      }
-    }
-  }
-}
-
-void gameLogic() {
-  if (currentGameType == freeDraw) {
-    gameJoystickMove(maxIndexFree);
-    blinkCurrentPixel();
-    if (joySwState == HIGH && joySwCmdExec == false) {
-      joySwCmdExec = true;
-      movesCount++;
-      logicalMatrix[mtxIndexY][mtxIndexX] = !logicalMatrix[mtxIndexY][mtxIndexX];
-      buzzerController(btnPressSoundHz, moveSoundDuration);
-    }
-  }
-
-  if (currentGameType == randomBoard) {
-    checkForWin();
-    gameJoystickMove(maxIndexBoard);
-    if (joySwState == HIGH && joySwCmdExec == false) {
-      joySwCmdExec = true;
-      movesCount++;
-      toggleNeighbors(mtxIndexY, mtxIndexX);
-    }
-  }
-
-  if (currentGameType == demoGame) {
-    checkForWin();
-    gameJoystickMove(maxIndexBoard);
-    if (joySwState == HIGH && joySwCmdExec == false) {
-      joySwCmdExec = true;
-      movesCount++;
-      toggleNeighbors(mtxIndexY, mtxIndexX);
-      buzzerController(btnPressSoundHz, moveSoundDuration);
-    }
-  }
-}
-
-void generateBoard() {
-  int noOfLights = random(maxIndexBoard * maxIndexBoard * 0.2, maxIndexBoard * maxIndexBoard * 0.8);
-  for (int light = 0; light < noOfLights; light++) {
-    int i = random(maxIndexBoard);
-    int j = random(maxIndexBoard);
-    logicalMatrix[j][i] = HIGH;
-  }
-  for (int i = 0; i < maxIndexBoard; i++) {
-    for (int j = 0; j < maxIndexBoard; j++) {
-      if (logicalMatrix[j][i] == HIGH) {
-        noOfOnLights++;
-      }
-    }
-  }
-  //Serial.print("On lights at start: ");
-  //Serial.println(noOfOnLights);
-}
-
-void generateDemoBoard() {
-  logicalMatrix[1][1] = HIGH;
-  logicalMatrix[2][0] = HIGH;
-  logicalMatrix[2][1] = HIGH;
-  logicalMatrix[2][2] = HIGH;
-  logicalMatrix[3][1] = HIGH;
-  noOfOnLights = 5;
-}
-
-void toggleNeighbors(short i, short j) {
-  upNeighbor = i - 1;
-  downNeighbor = i + 1;
-  leftNeighbor = j - 1;
-  rightNeighbor = j + 1;
-  logicalMatrix[i][j] = !logicalMatrix[i][j];
-  if (logicalMatrix[i][j] == HIGH) {
-    noOfOnLights++;
-  } else {
-    noOfOnLights--;
-  }
-  if (upNeighbor >= 0 && upNeighbor < maxIndexBoard) {
-    logicalMatrix[upNeighbor][j] = !logicalMatrix[upNeighbor][j];
-    if (logicalMatrix[upNeighbor][j] == HIGH) {
-      noOfOnLights++;
-    } else {
-      noOfOnLights--;
-    }
-  }
-
-  if (downNeighbor >= 0 && downNeighbor < maxIndexBoard) {
-    logicalMatrix[downNeighbor][j] = !logicalMatrix[downNeighbor][j];
-    if (logicalMatrix[downNeighbor][j] == HIGH) {
-      noOfOnLights++;
-    } else {
-      noOfOnLights--;
-    }
-  }
-
-  if (leftNeighbor >= 0 && leftNeighbor < maxIndexBoard) {
-    logicalMatrix[i][leftNeighbor] = !logicalMatrix[i][leftNeighbor];
-    if (logicalMatrix[i][leftNeighbor] == HIGH) {
-      noOfOnLights++;
-    } else {
-      noOfOnLights--;
-    }
-  }
-
-  if (rightNeighbor >= 0 && rightNeighbor < maxIndexBoard) {
-    logicalMatrix[i][rightNeighbor] = !logicalMatrix[i][rightNeighbor];
-    if (logicalMatrix[i][rightNeighbor] == HIGH) {
-      noOfOnLights++;
-    } else {
-      noOfOnLights--;
-    }
-  }
-  buzzerController(btnPressSoundHz, moveSoundDuration);
-  //Serial.print("Current on lights: ");
-  //Serial.println(noOfOnLights);
-}
-
-void checkForWin() {
-  if (noOfOnLights == 0) {
-    currInternalMenuState = endGame;
-    isInGame = false;
-    isMtxEnabled = true;
-    lcd.clear();
-  }
-}
-
-void blinkCurrentPixel() {
-  byte ledState = logicalMatrix[mtxIndexX][mtxIndexY];
-  if (!ledState && millis() - prevMillisBlink >= blinkInterval) {
-    prevMillisBlink = millis();
-    ledState = !ledState;
-    matrix.setLed(matrixId, mtxIndexY,mtxIndexX,ledState);
-  }
-}
-
 //SUBMENU FUNCTIONS START HERE
 void handleSettingsSubmenus() {
   if (currentSettingsSubmenu != previousSubmenuState) {
@@ -879,12 +729,91 @@ void handleSettingsSubmenus() {
   previousSubmenuState = currentSettingsSubmenu;
 }
 
+void nameEditor() {
+  if (nameEditorInitialized == false) {
+    nameEditorInitialized = true;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Name editor:");
+    lcd.setCursor(0, 1);
+    lcd.print(currPlayer.name);
+    lcd.setCursor(0, 1);
+    lcd.cursor();
+    upMovementEnabled = false;
+    downMovementEnabled = false;
+    leftMovementEnabled = false;
+    currSymbol = 0;
+    charIndex = 0;
+  }
+  lcd.setCursor(charIndex, 1);
+
+  if (joyState == RIGHT && cmdExecuted == false) {
+    cmdExecuted = true;
+    charIndex++;
+    if (charIndex > maxCharsName - charStrToIndexes) {
+      charIndex = 0;
+    }
+    for (int i = 0; i < noOfSymbols; ++i) {
+      if (symbols[i] == currPlayer.name[charIndex]) {
+        currSymbol = i;
+        break;
+      }
+    }
+  }
+
+  if (joyState == UP && cmdExecuted == false) {
+    cmdExecuted = true;
+    currSymbol++;
+    if (currSymbol < 0) {
+      currSymbol = noOfSymbols - offsetIndex;
+    }
+    if (currSymbol > noOfSymbols - offsetIndex) {
+      currSymbol = 0;
+    }
+  }
+
+  if (joyState == DOWN && cmdExecuted == false) {
+    cmdExecuted = true;
+    currSymbol--;
+    if (currSymbol < 0) {
+      currSymbol = noOfSymbols - offsetIndex;
+    }
+    if (currSymbol > noOfSymbols - offsetIndex) {
+      currSymbol = 0;
+    }
+  }
+
+  char newChar = symbols[currSymbol];
+  if (currPlayer.name[charIndex] != newChar) {
+    currPlayer.name[charIndex] = newChar;
+    lcd.print(currPlayer.name[charIndex]);
+  }
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    lcd.noCursor();
+    lcd.clear();
+    isInNameEditor = false;
+    currentSettingsSubmenu = nameInput;
+    upMovementEnabled = true;
+    downMovementEnabled = true;
+    leftMovementEnabled = true;
+    nameEditorInitialized = false;
+  }
+}
+
 void handleNameInput() {
   if (currentSettingsSubmenu != previousSubmenuState) {
     lcd.print("Input name:");
     copyByteMatrix(atSymbolICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
+    lcd.print(currPlayer.name);
+  }
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    isInNameEditor = true;
+    currentSettingsSubmenu = inNameEditor;
   }
 }
 
@@ -923,11 +852,11 @@ void handleMtxBrightCtrl() {
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
     currMtxBrightness = static_cast<brightnessLevels>((currMtxBrightness + 1) % noOfBrightnessLevels);
     matrixBrightnessController(currMtxBrightness);
-    if (currMtxBrightness == autoB) {
-      autoBrightnessMtx = true;
-    } else {
-      autoBrightnessMtx = false;
-    }
+    // if (currMtxBrightness == autoB) {
+    //   autoBrightnessMtx = true;
+    // } else {
+    //   autoBrightnessMtx = false;
+    // }
     cmdExecutedRedSw = true;
     switch (currMtxBrightness) {
       case lowBrightness:
@@ -988,11 +917,11 @@ void handleLcdBrightCtrl() {
   }
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
     currLcdBrightness = static_cast<brightnessLevels>((currLcdBrightness + 1) % noOfBrightnessLevels);
-    if (currLcdBrightness == autoB) {
-      autoBrightnessLCD = true;
-    } else {
-      autoBrightnessLCD = false;
-    }
+    // if (currLcdBrightness == autoB) {
+    //   autoBrightnessLCD = true;
+    // } else {
+    //   autoBrightnessLCD = false;
+    // }
     cmdExecutedRedSw = true;
     displayBrightnessController(currLcdBrightness);
     switch (currLcdBrightness) {
@@ -1055,27 +984,41 @@ void handleGameTypeSelect() {
     copyByteMatrix(smileyICO, logicalMatrix);
     addArrowsToDisplay(upDownArr);
     lcd.setCursor(0, 1);
-    if (currentGameType == randomBoard) {
-      lcd.print("Random board");
-      lcd.setCursor(0, 1);
-    } else if (currentGameType == freeDraw) {
-      lcd.print("Free drawing");
-      lcd.setCursor(0, 1);
-    } else if (currentGameType == demoGame) {
-      lcd.print("Demo mode");
-      lcd.setCursor(0, 1);
+
+    switch (currentGameType) {
+      case randomBoard:
+        lcd.print("Random board");
+        break;
+      case freeDraw:
+        lcd.print("Free drawing");
+        break;
+      case demoGame:
+        lcd.print("Demo mode");
+        break;
     }
   }
 
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
-    currentGameType = (currentGameType == freeDraw) ? randomBoard : freeDraw;
-    if (currentGameType == randomBoard) {
-      lcd.print("Random board");
-      lcd.setCursor(0, 1);
-    } else if (currentGameType == freeDraw) {
-      lcd.print("Free drawing");
-      lcd.setCursor(0, 1);
+    currentGameType = static_cast<gameType>((static_cast<int>(currentGameType) + 1) % gameTypes);
+
+    lcd.clear();  // Clear the display to update with the new game type
+    lcd.print("Game type:");
+    copyByteMatrix(smileyICO, logicalMatrix);
+    addArrowsToDisplay(upDownArr);
+    lcd.setCursor(0, 1);
+
+    switch (currentGameType) {
+      case randomBoard:
+        lcd.print("Random board");
+        break;
+      case freeDraw:
+        lcd.print("Free drawing");
+        break;
+      case demoGame:
+        lcd.print("Demo mode");
+        break;
     }
+
     cmdExecutedRedSw = true;
   }
 }
@@ -1150,17 +1093,277 @@ void navigateBackToMainMenu() {
   }
 }
 
-//AUXILIARY FUNCTIONS START HERE
+//in game and end game stuff
+void handleInGame() {
+  unsigned long elapsedTime = millis() - startTime;
+  unsigned short elapsedSeconds = elapsedTime / msInSec;
+  unsigned short elapsedMinutes = elapsedSeconds / secInMin;
+  elapsedSeconds %= secInMin;
 
-// void generateAutoscrollingText(const char text[], short lineToDisplay) {
-//   int textLength = strlen(text);
-//   int displayLength = 16;
-//   for (int i = 0; i < textLength - displayLength + 1; i++) {
-//     lcd.setCursor(0, lineToDisplay);
-//     lcd.print(text + i);
-//     delay(150);
-//   }
-// } function no longer used but will remain in the code as a proof of concept
+  String formattedMinutes = String(elapsedMinutes);
+  String formattedSeconds = (elapsedSeconds < noOfSecForFormat) ? "0" + String(elapsedSeconds) : String(elapsedSeconds);
+
+  lcd.print("Time: " + formattedMinutes + "m " + formattedSeconds + "s");
+  lcd.setCursor(0, 1);
+  lcd.print("Moves: " + String(movesCount));
+  lcd.setCursor(13, 0);
+  lcd.print("X:" + String(mtxIndexX + offsetIndex));
+  lcd.setCursor(13, 1);
+  lcd.print("Y:" + String(mtxIndexY + offsetIndex));
+  lcd.setCursor(0, 0);
+  gameLogic();
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    cmdExecutedRedSw = true;
+    currInternalMenuState = endGame;
+    isInGame = false;
+    buzzerController(btnPressSoundHz, moveSoundDuration);
+    lcd.clear();
+  }
+}
+
+void startGameFn() {
+  isInGame = true;
+  endComesFromWin = false;
+  startTime = millis();
+  currentState = inSubmenu;
+  currInternalMenuState = inGame;
+  lcd.clear();
+  clearLogicalMatrix();
+  mtxIndexX = 0;
+  mtxIndexY = 0;
+  movesCount = 0;
+  noOfOnLights = 0;
+  if (currentGameType == randomBoard) {
+    generateBoard();
+  }
+  if (currentGameType == demoGame) {
+    generateDemoBoard();
+  }
+}
+
+void handleEndGame() {
+  if (endGameLCDPrinted == false) {
+    endGameLCDPrinted = true;
+    if (endComesFromWin) {
+      lcd.clear();
+      lcd.print("You won!");
+      lcd.setCursor(0, 1);
+      lcd.print("In " + String(currPlayer.scoreValue) + " moves.");
+      if (isHighScore()) {
+        lcd.clear();
+        lcd.print("You beat the hs");
+        lcd.setCursor(0, 1);
+        lcd.print("With " + String(currPlayer.scoreValue) + " moves.");
+      }
+    } else {
+      lcd.clear();
+      lcd.print("Game ended!");
+    }
+  }
+
+  if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    buzzerController(btnPressSoundHz, moveSoundDuration);
+    cmdExecutedRedSw = true;
+    currentState = startGame;
+    currInternalMenuState = inOtherMenu;
+    endGameLCDPrinted = false;
+  }
+}
+
+void checkIndexesOutOfRange(short maxIndex) {
+  if (mtxIndexX > maxIndex - offsetIndex) {
+    mtxIndexX = 0;
+  } else if (mtxIndexX < 0) {
+    mtxIndexX = maxIndex - offsetIndex;
+  }
+  if (mtxIndexY > maxIndex - offsetIndex) {
+    mtxIndexY = 0;
+  } else if (mtxIndexY < 0) {
+    mtxIndexY = maxIndex - offsetIndex;
+  }
+}
+
+void gameJoystickMove(short maxIndexFn) {
+  if (joyState == STATIC) {
+    cmdExecuted = false;
+  } else {
+    if (cmdExecuted == false) {
+      switch (joyState) {
+        case LEFT:
+          cmdExecuted = true;
+          mtxIndexX--;
+          checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
+          break;
+        case RIGHT:
+          cmdExecuted = true;
+          mtxIndexX++;
+          checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
+          break;
+        case UP:
+          cmdExecuted = true;
+          mtxIndexY--;
+          checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
+          break;
+        case DOWN:
+          cmdExecuted = true;
+          mtxIndexY++;
+          checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+void gameLogic() {
+  if (currentGameType == freeDraw) {
+    gameJoystickMove(maxIndexFree);
+    //blinkCurrentPixel();
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      logicalMatrix[mtxIndexY][mtxIndexX] = !logicalMatrix[mtxIndexY][mtxIndexX];
+      buzzerController(btnPressSoundHz, moveSoundDuration);
+    }
+  }
+
+  if (currentGameType == randomBoard) {
+    checkForWin();
+    gameJoystickMove(maxIndexBoard);
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      toggleNeighbors(mtxIndexY, mtxIndexX);
+    }
+  }
+
+  if (currentGameType == demoGame) {
+    checkForWin();
+    gameJoystickMove(maxIndexBoard);
+    if (joySwState == HIGH && joySwCmdExec == false) {
+      joySwCmdExec = true;
+      movesCount++;
+      toggleNeighbors(mtxIndexY, mtxIndexX);
+      buzzerController(btnPressSoundHz, moveSoundDuration);
+    }
+  }
+}
+
+void generateBoard() {
+  int noOfLights = random(maxIndexBoard * maxIndexBoard * minPercentOfLitPixels, maxIndexBoard * maxIndexBoard * maxPercentOfLitPixels);
+  for (int light = 0; light < noOfLights; light++) {
+    int i = random(maxIndexBoard);
+    int j = random(maxIndexBoard);
+    logicalMatrix[j][i] = HIGH;
+  }
+  for (int i = 0; i < maxIndexBoard; i++) {
+    for (int j = 0; j < maxIndexBoard; j++) {
+      if (logicalMatrix[j][i] == HIGH) {
+        noOfOnLights++;
+      }
+    }
+  }
+}
+
+void generateDemoBoard() {
+  logicalMatrix[1][1] = HIGH;
+  logicalMatrix[2][0] = HIGH;
+  logicalMatrix[2][1] = HIGH;
+  logicalMatrix[2][2] = HIGH;
+  logicalMatrix[3][1] = HIGH;
+  noOfOnLights = 5;
+}
+
+void toggleNeighbors(short i, short j) {
+  upNeighbor = i - 1;
+  downNeighbor = i + 1;
+  leftNeighbor = j - 1;
+  rightNeighbor = j + 1;
+  logicalMatrix[i][j] = !logicalMatrix[i][j];
+  if (logicalMatrix[i][j] == HIGH) {
+    noOfOnLights++;
+  } else {
+    noOfOnLights--;
+  }
+  if (upNeighbor >= 0 && upNeighbor < maxIndexBoard) {
+    logicalMatrix[upNeighbor][j] = !logicalMatrix[upNeighbor][j];
+    if (logicalMatrix[upNeighbor][j] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
+  }
+
+  if (downNeighbor >= 0 && downNeighbor < maxIndexBoard) {
+    logicalMatrix[downNeighbor][j] = !logicalMatrix[downNeighbor][j];
+    if (logicalMatrix[downNeighbor][j] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
+  }
+
+  if (leftNeighbor >= 0 && leftNeighbor < maxIndexBoard) {
+    logicalMatrix[i][leftNeighbor] = !logicalMatrix[i][leftNeighbor];
+    if (logicalMatrix[i][leftNeighbor] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
+  }
+
+  if (rightNeighbor >= 0 && rightNeighbor < maxIndexBoard) {
+    logicalMatrix[i][rightNeighbor] = !logicalMatrix[i][rightNeighbor];
+    if (logicalMatrix[i][rightNeighbor] == HIGH) {
+      noOfOnLights++;
+    } else {
+      noOfOnLights--;
+    }
+  }
+  buzzerController(btnPressSoundHz, moveSoundDuration);
+  //Serial.print("Current on lights: ");
+  //Serial.println(noOfOnLights);
+}
+
+void checkForWin() {
+  if (noOfOnLights == 0) {
+    currInternalMenuState = endGame;
+    isInGame = false;
+    lcd.clear();
+    endComesFromWin = true;
+    currPlayer.scoreValue = movesCount;
+    updateHighScores();
+  }
+}
+
+bool isHighScore() {
+  for (int i = 0; i < noOfHighscores; ++i) {
+    if (currPlayer.scoreValue < hsArr[i].scoreValue) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void updateHighScores() {
+  if (isHighScore()) {
+    for (int i = noOfHighscores - 1; i > 0; --i) {
+      strcpy(hsArr[i].name, hsArr[i - 1].name);
+      hsArr[i].scoreValue = hsArr[i - 1].scoreValue;
+    }
+    strcpy(hsArr[0].name, currPlayer.name);
+    hsArr[0].scoreValue = currPlayer.scoreValue;
+    saveHighscores();
+  }
+}
+
+//AUXILIARY FUNCTIONS START HERE
 
 void addArrowsToDisplay(arrowTypes type) {
   switch (type) {
@@ -1203,11 +1406,33 @@ void addArrowsToDisplay(arrowTypes type) {
   }
 }
 
+// void displayMatrix() {
+//   for (int row = 0; row < matrixSize; row++) {
+//     for (int col = 0; col < matrixSize; col++) {
+//       matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
+//     }
+//   }
+// }
+
 void displayMatrix() {
   for (int row = 0; row < matrixSize; row++) {
     for (int col = 0; col < matrixSize; col++) {
-      // if (row == mtxIndexY && col == mtxIndexX) {
-      //   continue;
+      // if (isInGame) {
+      //   // Check if the current pixel matches the blink conditions
+      //   if (row == mtxIndexX && col == mtxIndexY) {
+      //     bool ledState = logicalMatrix[mtxIndexX][mtxIndexY];
+      //       if (millis() - prevMillisBlink >= blinkInterval) {
+      //         prevMillisBlink = millis();
+      //         ledState = !ledState;
+      //         matrix.setLed(matrixId, mtxIndexY, mtxIndexX, ledState);
+      //       }
+      //   } else {
+      //     // Display the matrix as usual
+      //     matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
+      //   }
+      // } else {
+      //   // Display the matrix as usual when not in a game
+      //   matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
       // }
       matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
     }
@@ -1229,34 +1454,6 @@ void clearLogicalMatrix() {
     }
   }
 }
-
-// void testSymbols(){
-//   copyByteMatrix(settingsICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(smileyICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(mainMenuICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(atSymbolICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(lightICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(musicICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(helpICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   copyByteMatrix(highscoreICO, logicalMatrix);
-//   displayMatrix();
-//   delay(500);
-//   clearLogicalMatrix();
-// } useless function used for testing the symbols only
 
 void loadParameters() {
   int readAddr = soundOnAddr;
@@ -1297,34 +1494,6 @@ void saveHighscores() {
     writeAddress += sizeof(highscore);
   }
 }
-
-// void displayLoadedParameters() {
-//   Serial.println("Loaded Parameters:");
-
-//   Serial.print("Sound On: ");
-//   Serial.println(isSoundOn);
-
-//   Serial.print("Current LCD Brightness: ");
-//   Serial.println(static_cast<int>(currLcdBrightness));
-
-//   Serial.print("Current Matrix Brightness: ");
-//   Serial.println(static_cast<int>(currMtxBrightness));
-
-//   Serial.print("Current Game Type: ");
-//   Serial.println(static_cast<int>(currentGameType));
-// }
-
-// void displayLoadedHighscores() {
-//   Serial.println("Loaded Highscores:");
-//   for (int i = 0; i < noOfHighscores; i++) {
-//     Serial.print("Highscore: ");
-//     Serial.print("Name: ");
-//     Serial.print(hsArr[i].name);
-//     Serial.print(", Score: ");
-//     Serial.println(hsArr[i].scoreValue);
-//   }
-// }  //functions used for testing EEPROM R/W
-
 
 //HARDWARE CONTROL FUNCTIONS START HERE
 void getJoystickState() {
@@ -1490,7 +1659,7 @@ void buzzerController(unsigned int frequency, unsigned long duration) {
 void executeResetHighscores() {
   for (int i = 0; i < noOfHighscores; i++) {
     strcpy(hsArr[i].name, "");
-    hsArr[i].scoreValue = 0;
+    hsArr[i].scoreValue = 9999;
   }
   buzzerController(resetSoundHz, moveSoundDuration);
   saveHighscores();
