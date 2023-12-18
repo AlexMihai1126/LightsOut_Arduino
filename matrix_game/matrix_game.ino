@@ -18,7 +18,7 @@
 #define joystickSw A4
 #define ambientLightSensor A3
 #define matrixSize 8
-#define blinkInterval 125
+#define blinkInterval 250
 #define maxCharsName 8
 #define maxGameLevels 4
 #define maxAccesibleMenuStates 5
@@ -53,6 +53,7 @@
 #define moveSoundHz 1000
 #define moveSoundDuration 50
 #define resetSoundHz 2500
+#define btnPressSoundHz 500
 #define msInSec 1000
 #define secInMin 60
 #define maxIndexFree 8
@@ -202,6 +203,18 @@ byte highscoreICO[matrixSize][matrixSize] = {
   { 0, 1, 0, 1, 0, 0, 0, 1 },
   { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
+
+const uint8_t IMAGES[][8] = {
+  { 0b00000000,
+    0b00100010,
+    0b01110111,
+    0b01111111,
+    0b01111111,
+    0b00111110,
+    0b00011100,
+    0b00001000 }
+};
+
 
 enum brightnessLevels {
   lowBrightness,
@@ -362,7 +375,7 @@ void setup() {
   currentState = intro;        //switch to intro state after the setup runs
   buzzerController(startupFreqSound, soundDuration);
 }
-//todo impement demo board switcher, highscore update and how to play
+//todo impement demo board switcher, highscore update and how to play, remove magic numbers from the board generator
 void loop() {
   displayMatrix();
   getJoystickState();
@@ -602,6 +615,7 @@ void handleInGame() {
     currInternalMenuState = endGame;
     isInGame = false;
     isMtxEnabled = true;
+    buzzerController(btnPressSoundHz, moveSoundDuration);
     lcd.clear();
   }
 }
@@ -635,6 +649,7 @@ void handleEndGame() {
   }
 
   if (redSwState == HIGH && cmdExecutedRedSw == false) {
+    buzzerController(btnPressSoundHz, moveSoundDuration);
     cmdExecutedRedSw = true;
     currentState = startGame;
     currInternalMenuState = inOtherMenu;
@@ -672,24 +687,28 @@ void gameJoystickMove(short maxIndexFn) {
           cmdExecuted = true;
           mtxIndexX--;
           checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
           //printIndexes();
           break;
         case RIGHT:
           cmdExecuted = true;
           mtxIndexX++;
           checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
           //printIndexes();
           break;
         case UP:
           cmdExecuted = true;
           mtxIndexY--;
           checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
           //printIndexes();
           break;
         case DOWN:
           cmdExecuted = true;
           mtxIndexY++;
           checkIndexesOutOfRange(maxIndexFn);
+          buzzerController(moveSoundHz, moveSoundDuration);
           //printIndexes();
           break;
         default:
@@ -707,6 +726,7 @@ void gameLogic() {
       joySwCmdExec = true;
       movesCount++;
       logicalMatrix[mtxIndexY][mtxIndexX] = !logicalMatrix[mtxIndexY][mtxIndexX];
+      buzzerController(btnPressSoundHz, moveSoundDuration);
     }
   }
 
@@ -727,6 +747,7 @@ void gameLogic() {
       joySwCmdExec = true;
       movesCount++;
       toggleNeighbors(mtxIndexY, mtxIndexX);
+      buzzerController(btnPressSoundHz, moveSoundDuration);
     }
   }
 }
@@ -749,7 +770,7 @@ void generateBoard() {
   //Serial.println(noOfOnLights);
 }
 
-void generateDemoBoard(){
+void generateDemoBoard() {
   logicalMatrix[1][1] = HIGH;
   logicalMatrix[2][0] = HIGH;
   logicalMatrix[2][1] = HIGH;
@@ -804,12 +825,13 @@ void toggleNeighbors(short i, short j) {
       noOfOnLights--;
     }
   }
+  buzzerController(btnPressSoundHz, moveSoundDuration);
   //Serial.print("Current on lights: ");
   //Serial.println(noOfOnLights);
 }
 
-void checkForWin(){
-  if(noOfOnLights == 0){
+void checkForWin() {
+  if (noOfOnLights == 0) {
     currInternalMenuState = endGame;
     isInGame = false;
     isMtxEnabled = true;
@@ -822,8 +844,7 @@ void blinkCurrentPixel() {
   if (!ledState && millis() - prevMillisBlink >= blinkInterval) {
     prevMillisBlink = millis();
     ledState = !ledState;
-    matrix.setLed(matrixId, mtxIndexY, mtxIndexX, ledState);
-    //isMtxEnabled = !isMtxEnabled;
+    matrix.setLed(matrixId, mtxIndexY,mtxIndexX,ledState);
   }
 }
 
@@ -1103,9 +1124,9 @@ void navigateSubmenuUp() {
     cmdExecuted = true;
     buzzerController(moveSoundHz, moveSoundDuration);
     if (currentSettingsSubmenu > 0) {
-      currentSettingsSubmenu = static_cast<submenuStates>(currentSettingsSubmenu - 1);
+      currentSettingsSubmenu = static_cast<submenuStates>(currentSettingsSubmenu - offsetIndex);
     } else {
-      currentSettingsSubmenu = static_cast<submenuStates>(maxAccesibleSubmenuStates - 1);
+      currentSettingsSubmenu = static_cast<submenuStates>(maxAccesibleSubmenuStates - offsetIndex);
     }
   }
 }
@@ -1183,11 +1204,12 @@ void addArrowsToDisplay(arrowTypes type) {
 }
 
 void displayMatrix() {
-  if (isMtxEnabled == true) {
-    for (int row = 0; row < matrixSize; row++) {
-      for (int col = 0; col < matrixSize; col++) {
-        matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
-      }
+  for (int row = 0; row < matrixSize; row++) {
+    for (int col = 0; col < matrixSize; col++) {
+      // if (row == mtxIndexY && col == mtxIndexX) {
+      //   continue;
+      // }
+      matrix.setLed(matrixId, row, col, logicalMatrix[row][col]);
     }
   }
 }
