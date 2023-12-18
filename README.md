@@ -12,7 +12,12 @@ In demo mode, you get a very very simple lights out board to practice the game b
 
 ## Picture of the setup:
 
+![](https://github.com/AlexMihai1126/LightsOut_Arduino/blob/main/Images/20231218_210305153_iOS.jpg)
+![](https://github.com/AlexMihai1126/LightsOut_Arduino/blob/main/Images/20231218_210237389_iOS.jpg)
+
 ## Video showcasing the functionality: 
+
+https://youtu.be/M0Rja9_QZQ0
 
 ## Components used:
 8x8 LED matrix with MAX7219 driver, 16x2 LCD module (and 330 ohm resistor for current limiting the backlight LED), joystick, red pushbutton, Arduino UNO, breadboard for the internal wiring, a 10k potentiometer for contrast adjusting the display, passive buzzer (with 100 ohm limit resistor), light sensor (for auto brightness of the displays) and lots of foamboard for making the enclosure.
