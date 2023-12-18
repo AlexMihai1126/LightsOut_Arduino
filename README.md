@@ -20,4 +20,5 @@ In demo mode, you get a very very simple lights out board to practice the game b
 ## Known issues:
 
 LEDs do not blink properly when selected
+
 Auto brightness controller does not work as expected (and is currently disabled)
