@@ -16,3 +16,8 @@ In demo mode, you get a very very simple lights out board to practice the game b
 
 ## Components used:
 8x8 LED matrix with MAX7219 driver, 16x2 LCD module (and 330 ohm resistor for current limiting the backlight LED), joystick, red pushbutton, Arduino UNO, breadboard for the internal wiring, a 10k potentiometer for contrast adjusting the display, passive buzzer (with 100 ohm limit resistor), light sensor (for auto brightness of the displays) and lots of foamboard for making the enclosure.
+
+## Known issues:
+
+LEDs do not blink properly when selected
+Auto brightness controller does not work as expected (and is currently disabled)
