@@ -1240,6 +1240,7 @@ void gameLogic() {
       joySwCmdExec = true;
       movesCount++;
       toggleNeighbors(mtxIndexY, mtxIndexX);
+      buzzerController(btnPressSoundHz, moveSoundDuration);
     }
   }
 
