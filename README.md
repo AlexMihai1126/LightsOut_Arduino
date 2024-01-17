@@ -10,10 +10,15 @@ In free drawing mode, you select a pixel with the joystick, then click it to tog
 
 In demo mode, you get a very very simple lights out board to practice the game before entering the real challenge in random mode. Same rules, just extremely simplified.
 
-## Picture of the setup:
+## Pictures of the setup:
+<details>
+<summary></summary>
 
 ![](https://github.com/AlexMihai1126/LightsOut_Arduino/blob/main/Images/20231218_210305153_iOS.jpg)
+
 ![](https://github.com/AlexMihai1126/LightsOut_Arduino/blob/main/Images/20231218_210237389_iOS.jpg)
+</details>
+
 
 ## Video showcasing the functionality: 
 
