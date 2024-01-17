@@ -12,7 +12,7 @@ In demo mode, you get a very very simple lights out board to practice the game b
 
 ## Pictures of the setup:
 <details>
-<summary></summary>
+<summary>Click here</summary>
 
 ![](https://github.com/AlexMihai1126/LightsOut_Arduino/blob/main/Images/20231218_210305153_iOS.jpg)
 
